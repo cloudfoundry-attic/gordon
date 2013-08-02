@@ -45,6 +45,10 @@ func (c *Client) NetIn(handle string) (*NetInResponse, error) {
 	return (<-c.connection).NetIn(handle)
 }
 
+func (c *Client) LimitMemory(handle string, limit uint64) (*LimitMemoryResponse, error) {
+	return (<-c.connection).LimitMemory(handle, limit)
+}
+
 func (c *Client) List() (*ListResponse, error) {
 	return (<-c.connection).List()
 }
