@@ -66,8 +66,35 @@ func (w *WSuite) TestMemoryLimiting(c *C) {
 		string(
 			messages(
 				&LimitMemoryRequest{
-					Handle: proto.String("foo"),
+					Handle:       proto.String("foo"),
 					LimitInBytes: proto.Uint64(42),
+				},
+			).Bytes(),
+		),
+	)
+}
+
+func (w *WSuite) TestDiskLimiting(c *C) {
+	conn := &fakeConn{
+		ReadBuffer:  messages(&LimitDiskResponse{ByteLimit: proto.Uint64(40)}),
+		WriteBuffer: bytes.NewBuffer([]byte{}),
+	}
+
+	connection := NewConnection(conn)
+
+	res, err := connection.LimitDisk("foo", 42)
+	c.Assert(err, IsNil)
+
+	c.Assert(res.GetLimitInBytes(), Equals, uint64(40))
+
+	c.Assert(
+		string(conn.WriteBuffer.Bytes()),
+		Equals,
+		string(
+			messages(
+				&LimitDiskRequest{
+					Handle:    proto.String("foo"),
+					ByteLimit: proto.Uint64(42),
 				},
 			).Bytes(),
 		),

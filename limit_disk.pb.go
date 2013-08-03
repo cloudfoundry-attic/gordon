@@ -229,5 +229,12 @@ func (m *LimitDiskResponse) GetByteHard() uint64 {
 	return 0
 }
 
+func (m *LimitDiskResponse) GetLimitInBytes() uint64 {
+	if m != nil && m.ByteLimit != nil {
+		return *m.ByteLimit
+	}
+	return 0
+}
+
 func init() {
 }
