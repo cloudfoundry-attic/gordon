@@ -15,6 +15,7 @@ type Connection struct {
 	conn      net.Conn
 	read      *bufio.Reader
 	writeLock sync.Mutex
+	readLock  sync.Mutex
 
 	disconnected chan bool
 }
@@ -355,6 +356,9 @@ func (c *Connection) readResponse(response proto.Message) (proto.Message, error)
 }
 
 func (c *Connection) readPayload() ([]byte, error) {
+	c.readLock.Lock()
+	defer c.readLock.Unlock()
+
 	msgHeader, err := c.read.ReadBytes('\n')
 	if err != nil {
 		return nil, err
