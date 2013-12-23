@@ -81,7 +81,7 @@ func (c *Connection) Spawn(handle, script string, discardOutput bool) (*SpawnRes
 		&SpawnRequest{
 			Handle:        proto.String(handle),
 			Script:        proto.String(script),
-			DiscardOutput: proto.Bool(true),
+			DiscardOutput: proto.Bool(discardOutput),
 		},
 		&SpawnResponse{},
 	)

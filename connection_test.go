@@ -179,7 +179,10 @@ func (w *WSuite) TestGettingDiskLimit(c *C) {
 
 func (w *WSuite) TestConnectionSpawn(c *C) {
 	conn := &fakeConn{
-		ReadBuffer:  messages(&SpawnResponse{JobId: proto.Uint32(42)}),
+		ReadBuffer:  messages(
+			&SpawnResponse{JobId: proto.Uint32(42)},
+			&SpawnResponse{JobId: proto.Uint32(43)},
+		),
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
@@ -199,6 +202,21 @@ func (w *WSuite) TestConnectionSpawn(c *C) {
 	)
 
 	c.Assert(resp.GetJobId(), Equals, uint32(42))
+
+	conn.WriteBuffer.Reset()
+
+	resp, err = connection.Spawn("foo-handle", "echo hi", false)
+	c.Assert(err, IsNil)
+
+	c.Assert(
+		string(conn.WriteBuffer.Bytes()),
+		Equals,
+		string(messages(&SpawnRequest{
+			Handle:        proto.String("foo-handle"),
+			Script:        proto.String("echo hi"),
+			DiscardOutput: proto.Bool(false),
+		}).Bytes()),
+	)
 }
 
 func (w *WSuite) TestConnectionNetIn(c *C) {
