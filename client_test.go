@@ -83,7 +83,7 @@ func (w *WSuite) TestClientSpawnAndStreaming(c *C) {
 	err := client.Connect()
 	c.Assert(err, IsNil)
 
-	spawned, err := client.Spawn("foo", "echo some data for stdout")
+	spawned, err := client.Spawn("foo", "echo some data for stdout", true)
 	c.Assert(err, IsNil)
 
 	responses, err := client.Stream("foo", spawned.GetJobId())
@@ -95,8 +95,9 @@ func (w *WSuite) TestClientSpawnAndStreaming(c *C) {
 		string(
 			messages(
 				&SpawnRequest{
-					Handle: proto.String("foo"),
-					Script: proto.String("echo some data for stdout"),
+					Handle:        proto.String("foo"),
+					Script:        proto.String("echo some data for stdout"),
+					DiscardOutput: proto.Bool(true),
 				},
 			).Bytes(),
 		),

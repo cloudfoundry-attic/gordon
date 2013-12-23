@@ -37,8 +37,8 @@ func (c *Client) Destroy(handle string) (*DestroyResponse, error) {
 	return (<-c.connection).Destroy(handle)
 }
 
-func (c *Client) Spawn(handle, script string) (*SpawnResponse, error) {
-	return (<-c.connection).Spawn(handle, script)
+func (c *Client) Spawn(handle, script string, discardOutput bool) (*SpawnResponse, error) {
+	return (<-c.connection).Spawn(handle, script, discardOutput)
 }
 
 func (c *Client) NetIn(handle string) (*NetInResponse, error) {

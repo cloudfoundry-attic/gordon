@@ -76,11 +76,12 @@ func (c *Connection) Destroy(handle string) (*DestroyResponse, error) {
 	return res.(*DestroyResponse), nil
 }
 
-func (c *Connection) Spawn(handle, script string) (*SpawnResponse, error) {
+func (c *Connection) Spawn(handle, script string, discardOutput bool) (*SpawnResponse, error) {
 	res, err := c.roundTrip(
 		&SpawnRequest{
-			Handle: proto.String(handle),
-			Script: proto.String(script),
+			Handle:        proto.String(handle),
+			Script:        proto.String(script),
+			DiscardOutput: proto.Bool(true),
 		},
 		&SpawnResponse{},
 	)

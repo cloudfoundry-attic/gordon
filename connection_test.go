@@ -185,15 +185,16 @@ func (w *WSuite) TestConnectionSpawn(c *C) {
 
 	connection := NewConnection(conn)
 
-	resp, err := connection.Spawn("foo-handle", "echo hi")
+	resp, err := connection.Spawn("foo-handle", "echo hi", true)
 	c.Assert(err, IsNil)
 
 	c.Assert(
 		string(conn.WriteBuffer.Bytes()),
 		Equals,
 		string(messages(&SpawnRequest{
-			Handle: proto.String("foo-handle"),
-			Script: proto.String("echo hi"),
+			Handle:        proto.String("foo-handle"),
+			Script:        proto.String("echo hi"),
+			DiscardOutput: proto.Bool(true),
 		}).Bytes()),
 	)
 
