@@ -2,10 +2,13 @@ package warden
 
 import (
 	"bytes"
-	"code.google.com/p/goprotobuf/proto"
 	"errors"
-	. "launchpad.net/gocheck"
 	"runtime"
+
+	"code.google.com/p/goprotobuf/proto"
+	. "launchpad.net/gocheck"
+
+	protocol "github.com/vito/gordon/protocol"
 )
 
 func (w *WSuite) TestClientConnectWithFailingProvider(c *C) {
@@ -25,9 +28,9 @@ func (w *WSuite) TestClientContainerLifecycle(c *C) {
 	writeBuffer := new(bytes.Buffer)
 
 	fcp := NewFakeConnectionProvider(
-		messages(
-			&CreateResponse{Handle: proto.String("foo")},
-			&DestroyResponse{},
+		protocol.Messages(
+			&protocol.CreateResponse{Handle: proto.String("foo")},
+			&protocol.DestroyResponse{},
 		),
 		writeBuffer,
 	)
@@ -48,9 +51,9 @@ func (w *WSuite) TestClientContainerLifecycle(c *C) {
 		string(writeBuffer.Bytes()),
 		Equals,
 		string(
-			messages(
-				&CreateRequest{},
-				&DestroyRequest{Handle: proto.String("foo")},
+			protocol.Messages(
+				&protocol.CreateRequest{},
+				&protocol.DestroyRequest{Handle: proto.String("foo")},
 			).Bytes(),
 		),
 	)
@@ -60,11 +63,11 @@ func (w *WSuite) TestClientSpawnAndStreaming(c *C) {
 	writeBuf := new(bytes.Buffer)
 
 	client := NewClient(NewFakeConnectionProvider(
-		messages(
-			&SpawnResponse{
+		protocol.Messages(
+			&protocol.SpawnResponse{
 				JobId: proto.Uint32(42),
 			},
-			&StreamResponse{
+			&protocol.StreamResponse{
 				Name: proto.String("stdout"),
 				Data: proto.String("some data for stdout"),
 			},
@@ -85,13 +88,13 @@ func (w *WSuite) TestClientSpawnAndStreaming(c *C) {
 		string(writeBuf.Bytes()),
 		Equals,
 		string(
-			messages(
-				&SpawnRequest{
+			protocol.Messages(
+				&protocol.SpawnRequest{
 					Handle:        proto.String("foo"),
 					Script:        proto.String("echo some data for stdout"),
 					DiscardOutput: proto.Bool(true),
 				},
-				&StreamRequest{Handle: proto.String("foo"), JobId: proto.Uint32(42)},
+				&protocol.StreamRequest{Handle: proto.String("foo"), JobId: proto.Uint32(42)},
 			).Bytes(),
 		),
 	)
@@ -105,8 +108,8 @@ func (w *WSuite) TestClientContainerInfo(c *C) {
 	writeBuffer := new(bytes.Buffer)
 
 	fcp := NewFakeConnectionProvider(
-		messages(
-			&InfoResponse{
+		protocol.Messages(
+			&protocol.InfoResponse{
 				State: proto.String("stopped"),
 			},
 		),
@@ -126,8 +129,8 @@ func (w *WSuite) TestClientContainerInfo(c *C) {
 		string(writeBuffer.Bytes()),
 		Equals,
 		string(
-			messages(
-				&InfoRequest{
+			protocol.Messages(
+				&protocol.InfoRequest{
 					Handle: proto.String("handle"),
 				},
 			).Bytes(),
@@ -139,8 +142,8 @@ func (w *WSuite) TestClientContainerList(c *C) {
 	writeBuffer := new(bytes.Buffer)
 
 	fcp := NewFakeConnectionProvider(
-		messages(
-			&ListResponse{
+		protocol.Messages(
+			&protocol.ListResponse{
 				Handles: []string{"container1", "container6"},
 			},
 		),
@@ -160,8 +163,8 @@ func (w *WSuite) TestClientContainerList(c *C) {
 		string(writeBuffer.Bytes()),
 		Equals,
 		string(
-			messages(
-				&ListRequest{},
+			protocol.Messages(
+				&protocol.ListRequest{},
 			).Bytes(),
 		),
 	)
@@ -174,16 +177,16 @@ func (w *WSuite) TestClientReconnects(c *C) {
 	mcp := &ManyConnectionProvider{
 		ConnectionProviders: []ConnectionProvider{
 			NewFakeConnectionProvider(
-				messages(
-					&CreateResponse{Handle: proto.String("handle a")},
+				protocol.Messages(
+					&protocol.CreateResponse{Handle: proto.String("handle a")},
 					// no response for Create #2
 				),
 				firstWriteBuf,
 			),
 			NewFakeConnectionProvider(
-				messages(
-					&DestroyResponse{},
-					&DestroyResponse{},
+				protocol.Messages(
+					&protocol.DestroyResponse{},
+					&protocol.DestroyResponse{},
 				),
 				secondWriteBuf,
 			),
@@ -211,15 +214,15 @@ func (w *WSuite) TestClientReconnects(c *C) {
 	c.Assert(
 		string(firstWriteBuf.Bytes()),
 		Equals,
-		string(messages(&CreateRequest{}, &CreateRequest{}).Bytes()),
+		string(protocol.Messages(&protocol.CreateRequest{}, &protocol.CreateRequest{}).Bytes()),
 	)
 
 	c.Assert(
 		string(secondWriteBuf.Bytes()),
 		Equals,
 		string(
-			messages(
-				&DestroyRequest{
+			protocol.Messages(
+				&protocol.DestroyRequest{
 					Handle: proto.String("handle a"),
 				},
 			).Bytes(),

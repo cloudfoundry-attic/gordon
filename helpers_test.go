@@ -2,13 +2,12 @@ package warden
 
 import (
 	"bytes"
-	"code.google.com/p/goprotobuf/proto"
 	"errors"
-	"fmt"
-	. "launchpad.net/gocheck"
 	"net"
 	"testing"
 	"time"
+
+	. "launchpad.net/gocheck"
 )
 
 type WSuite struct{}
@@ -17,31 +16,6 @@ func Test(t *testing.T) { TestingT(t) }
 
 func init() {
 	Suite(&WSuite{})
-}
-
-func messages(msgs ...proto.Message) *bytes.Buffer {
-	buf := bytes.NewBuffer([]byte{})
-
-	for _, msg := range msgs {
-		payload, err := proto.Marshal(msg)
-		if err != nil {
-			panic(err.Error())
-		}
-
-		message := &Message{
-			Type:    Message_Type(message2type(msg)).Enum(),
-			Payload: payload,
-		}
-
-		messagePayload, err := proto.Marshal(message)
-		if err != nil {
-			panic("failed to marshal message")
-		}
-
-		buf.Write([]byte(fmt.Sprintf("%d\r\n%s\r\n", len(messagePayload), messagePayload)))
-	}
-
-	return buf
 }
 
 type fakeConn struct {
