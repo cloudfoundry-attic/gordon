@@ -109,7 +109,7 @@ func (c *Connection) Run(handle, script string) (*RunResponse, error) {
 	return res.(*RunResponse), nil
 }
 
-func (c *Connection) Stream(handle string, jobId uint32) (chan *StreamResponse, error) {
+func (c *Connection) Stream(handle string, jobId uint32) (chan *StreamResponse, chan bool, error) {
 	err := c.sendMessage(
 		&StreamRequest{
 			Handle: proto.String(handle),
@@ -118,16 +118,19 @@ func (c *Connection) Stream(handle string, jobId uint32) (chan *StreamResponse, 
 	)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	responses := make(chan *StreamResponse)
+
+	streamDone := make(chan bool)
 
 	go func() {
 		for {
 			resMsg, err := c.readResponse(&StreamResponse{})
 			if err != nil {
 				close(responses)
+				close(streamDone)
 				break
 			}
 
@@ -137,12 +140,13 @@ func (c *Connection) Stream(handle string, jobId uint32) (chan *StreamResponse, 
 
 			if response.ExitStatus != nil {
 				close(responses)
+				close(streamDone)
 				break
 			}
 		}
 	}()
 
-	return responses, nil
+	return responses, streamDone, nil
 }
 
 func (c *Connection) NetIn(handle string) (*NetInResponse, error) {
@@ -353,6 +357,7 @@ func (c *Connection) readResponse(response proto.Message) (proto.Message, error)
 	}
 
 	err = proto.Unmarshal(message.GetPayload(), response)
+
 	return response, err
 }
 

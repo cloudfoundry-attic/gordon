@@ -2,9 +2,11 @@ package warden
 
 import (
 	"bytes"
+	"math"
+	"time"
+
 	"code.google.com/p/goprotobuf/proto"
 	. "launchpad.net/gocheck"
-	"math"
 )
 
 func (w *WSuite) TestConnectionCreating(c *C) {
@@ -179,7 +181,7 @@ func (w *WSuite) TestGettingDiskLimit(c *C) {
 
 func (w *WSuite) TestConnectionSpawn(c *C) {
 	conn := &fakeConn{
-		ReadBuffer:  messages(
+		ReadBuffer: messages(
 			&SpawnResponse{JobId: proto.Uint32(42)},
 			&SpawnResponse{JobId: proto.Uint32(43)},
 		),
@@ -354,7 +356,7 @@ func (w *WSuite) TestConnectionStream(c *C) {
 
 	connection := NewConnection(conn)
 
-	resp, err := connection.Stream("foo-handle", 42)
+	resp, done, err := connection.Stream("foo-handle", 42)
 	c.Assert(err, IsNil)
 
 	c.Assert(
@@ -370,13 +372,32 @@ func (w *WSuite) TestConnectionStream(c *C) {
 	c.Assert(res1.GetName(), Equals, "stdout")
 	c.Assert(res1.GetData(), Equals, "1")
 
+	select {
+	case <-done:
+		c.Error("done channel should not have been readable")
+	default:
+	}
+
 	res2 := <-resp
 	c.Assert(res2.GetName(), Equals, "stderr")
 	c.Assert(res2.GetData(), Equals, "2")
 
+	select {
+	case <-done:
+		c.Error("done channel should not have been readable")
+	default:
+	}
+
 	res3, ok := <-resp
 	c.Assert(res3.GetExitStatus(), Equals, uint32(3))
 	c.Assert(ok, Equals, true)
+
+	select {
+	case _, ok := <-done:
+		c.Assert(ok, Equals, false)
+	case <-time.After(1 * time.Second):
+		c.Error("done channel should have closed")
+	}
 }
 
 func (w *WSuite) TestConnectionError(c *C) {

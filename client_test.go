@@ -16,19 +16,21 @@ func (w *WSuite) TestClientConnectWithFailingProvider(c *C) {
 }
 
 func (w *WSuite) TestClientConnectWithSuccessfulProvider(c *C) {
-	client := NewClient(&FakeConnectionProvider{})
+	client := NewClient(NewFakeConnectionProvider(new(bytes.Buffer), new(bytes.Buffer)))
 	err := client.Connect()
 	c.Assert(err, IsNil)
 }
 
 func (w *WSuite) TestClientContainerLifecycle(c *C) {
-	fcp := &FakeConnectionProvider{
-		ReadBuffer: messages(
+	writeBuffer := new(bytes.Buffer)
+
+	fcp := NewFakeConnectionProvider(
+		messages(
 			&CreateResponse{Handle: proto.String("foo")},
 			&DestroyResponse{},
 		),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+		writeBuffer,
+	)
 
 	client := NewClient(fcp)
 
@@ -43,7 +45,7 @@ func (w *WSuite) TestClientContainerLifecycle(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(
-		string(fcp.WriteBuffer.Bytes()),
+		string(writeBuffer.Bytes()),
 		Equals,
 		string(
 			messages(
@@ -55,30 +57,20 @@ func (w *WSuite) TestClientContainerLifecycle(c *C) {
 }
 
 func (w *WSuite) TestClientSpawnAndStreaming(c *C) {
-	firstWriteBuf := bytes.NewBuffer([]byte{})
-	secondWriteBuf := bytes.NewBuffer([]byte{})
+	writeBuf := new(bytes.Buffer)
 
-	mcp := &ManyConnectionProvider{
-		ReadBuffers: []*bytes.Buffer{
-			messages(
-				&SpawnResponse{
-					JobId: proto.Uint32(42),
-				},
-			),
-			messages(
-				&StreamResponse{
-					Name: proto.String("stdout"),
-					Data: proto.String("some data for stdout"),
-				},
-			),
-		},
-		WriteBuffers: []*bytes.Buffer{
-			firstWriteBuf,
-			secondWriteBuf,
-		},
-	}
-
-	client := NewClient(mcp)
+	client := NewClient(NewFakeConnectionProvider(
+		messages(
+			&SpawnResponse{
+				JobId: proto.Uint32(42),
+			},
+			&StreamResponse{
+				Name: proto.String("stdout"),
+				Data: proto.String("some data for stdout"),
+			},
+		),
+		writeBuf,
+	))
 
 	err := client.Connect()
 	c.Assert(err, IsNil)
@@ -90,7 +82,7 @@ func (w *WSuite) TestClientSpawnAndStreaming(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(
-		string(firstWriteBuf.Bytes()),
+		string(writeBuf.Bytes()),
 		Equals,
 		string(
 			messages(
@@ -99,15 +91,6 @@ func (w *WSuite) TestClientSpawnAndStreaming(c *C) {
 					Script:        proto.String("echo some data for stdout"),
 					DiscardOutput: proto.Bool(true),
 				},
-			).Bytes(),
-		),
-	)
-
-	c.Assert(
-		string(secondWriteBuf.Bytes()),
-		Equals,
-		string(
-			messages(
 				&StreamRequest{Handle: proto.String("foo"), JobId: proto.Uint32(42)},
 			).Bytes(),
 		),
@@ -118,75 +101,17 @@ func (w *WSuite) TestClientSpawnAndStreaming(c *C) {
 	c.Assert(res.GetData(), Equals, "some data for stdout")
 }
 
-func (w *WSuite) TestClientRunningAndDestroying(c *C) {
-	firstWriteBuf := bytes.NewBuffer([]byte{})
-	secondWriteBuf := bytes.NewBuffer([]byte{})
-
-	mcp := &ManyConnectionProvider{
-		ReadBuffers: []*bytes.Buffer{
-			messages(
-				&DestroyResponse{},
-			),
-			messages(
-				&RunResponse{
-					ExitStatus: proto.Uint32(255),
-				},
-			),
-		},
-		WriteBuffers: []*bytes.Buffer{
-			firstWriteBuf,
-			secondWriteBuf,
-		},
-	}
-
-	client := NewClient(mcp)
-
-	err := client.Connect()
-	c.Assert(err, IsNil)
-
-	ran, err := client.Run("foo", "echo hi")
-	c.Assert(err, IsNil)
-
-	_, err = client.Destroy("foo")
-	c.Assert(err, IsNil)
-
-	c.Assert(ran.GetExitStatus(), Equals, uint32(255))
-
-	c.Assert(
-		string(firstWriteBuf.Bytes()),
-		Equals,
-		string(
-			messages(
-				&DestroyRequest{
-					Handle: proto.String("foo"),
-				},
-			).Bytes(),
-		),
-	)
-
-	c.Assert(
-		string(secondWriteBuf.Bytes()),
-		Equals,
-		string(
-			messages(
-				&RunRequest{
-					Handle: proto.String("foo"),
-					Script: proto.String("echo hi"),
-				},
-			).Bytes(),
-		),
-	)
-}
-
 func (w *WSuite) TestClientContainerInfo(c *C) {
-	fcp := &FakeConnectionProvider{
-		ReadBuffer: messages(
+	writeBuffer := new(bytes.Buffer)
+
+	fcp := NewFakeConnectionProvider(
+		messages(
 			&InfoResponse{
 				State: proto.String("stopped"),
 			},
 		),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+		writeBuffer,
+	)
 
 	client := NewClient(fcp)
 
@@ -198,7 +123,7 @@ func (w *WSuite) TestClientContainerInfo(c *C) {
 	c.Assert(res.GetState(), Equals, "stopped")
 
 	c.Assert(
-		string(fcp.WriteBuffer.Bytes()),
+		string(writeBuffer.Bytes()),
 		Equals,
 		string(
 			messages(
@@ -211,14 +136,16 @@ func (w *WSuite) TestClientContainerInfo(c *C) {
 }
 
 func (w *WSuite) TestClientContainerList(c *C) {
-	fcp := &FakeConnectionProvider{
-		ReadBuffer: messages(
+	writeBuffer := new(bytes.Buffer)
+
+	fcp := NewFakeConnectionProvider(
+		messages(
 			&ListResponse{
 				Handles: []string{"container1", "container6"},
 			},
 		),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+		writeBuffer,
+	)
 
 	client := NewClient(fcp)
 
@@ -230,64 +157,11 @@ func (w *WSuite) TestClientContainerList(c *C) {
 	c.Assert(res.GetHandles(), DeepEquals, []string{"container1", "container6"})
 
 	c.Assert(
-		string(fcp.WriteBuffer.Bytes()),
+		string(writeBuffer.Bytes()),
 		Equals,
 		string(
 			messages(
 				&ListRequest{},
-			).Bytes(),
-		),
-	)
-}
-
-func (w *WSuite) TestClientCopyingInAndDestroying(c *C) {
-	firstWriteBuf := bytes.NewBuffer([]byte{})
-	secondWriteBuf := bytes.NewBuffer([]byte{})
-
-	mcp := &ManyConnectionProvider{
-		ReadBuffers: []*bytes.Buffer{
-			messages(&DestroyResponse{}),
-			messages(&CopyInResponse{}),
-		},
-		WriteBuffers: []*bytes.Buffer{
-			firstWriteBuf,
-			secondWriteBuf,
-		},
-	}
-
-	client := NewClient(mcp)
-
-	err := client.Connect()
-	c.Assert(err, IsNil)
-
-	_, err = client.CopyIn("foo", "/foo", "/bar")
-	c.Assert(err, IsNil)
-
-	_, err = client.Destroy("foo")
-	c.Assert(err, IsNil)
-
-	c.Assert(
-		string(firstWriteBuf.Bytes()),
-		Equals,
-		string(
-			messages(
-				&DestroyRequest{
-					Handle: proto.String("foo"),
-				},
-			).Bytes(),
-		),
-	)
-
-	c.Assert(
-		string(secondWriteBuf.Bytes()),
-		Equals,
-		string(
-			messages(
-				&CopyInRequest{
-					Handle:  proto.String("foo"),
-					SrcPath: proto.String("/foo"),
-					DstPath: proto.String("/bar"),
-				},
 			).Bytes(),
 		),
 	)
@@ -298,19 +172,21 @@ func (w *WSuite) TestClientReconnects(c *C) {
 	secondWriteBuf := bytes.NewBuffer([]byte{})
 
 	mcp := &ManyConnectionProvider{
-		ReadBuffers: []*bytes.Buffer{
-			messages(
-				&CreateResponse{Handle: proto.String("handle a")},
-				// no response for Create #2
+		ConnectionProviders: []ConnectionProvider{
+			NewFakeConnectionProvider(
+				messages(
+					&CreateResponse{Handle: proto.String("handle a")},
+					// no response for Create #2
+				),
+				firstWriteBuf,
 			),
-			messages(
-				&DestroyResponse{},
-				&DestroyResponse{},
+			NewFakeConnectionProvider(
+				messages(
+					&DestroyResponse{},
+					&DestroyResponse{},
+				),
+				secondWriteBuf,
 			),
-		},
-		WriteBuffers: []*bytes.Buffer{
-			firstWriteBuf,
-			secondWriteBuf,
 		},
 	}
 
@@ -358,39 +234,35 @@ func (c *FailingConnectionProvider) ProvideConnection() (*Connection, error) {
 }
 
 type FakeConnectionProvider struct {
-	ReadBuffer  *bytes.Buffer
-	WriteBuffer *bytes.Buffer
+	connection *Connection
+}
+
+func NewFakeConnectionProvider(readBuffer, writeBuffer *bytes.Buffer) *FakeConnectionProvider {
+	return &FakeConnectionProvider{
+		connection: NewConnection(
+			&fakeConn{
+				ReadBuffer:  readBuffer,
+				WriteBuffer: writeBuffer,
+			},
+		),
+	}
 }
 
 func (c *FakeConnectionProvider) ProvideConnection() (*Connection, error) {
-	return NewConnection(
-		&fakeConn{
-			ReadBuffer:  c.ReadBuffer,
-			WriteBuffer: c.WriteBuffer,
-		},
-	), nil
+	return c.connection, nil
 }
 
 type ManyConnectionProvider struct {
-	ReadBuffers  []*bytes.Buffer
-	WriteBuffers []*bytes.Buffer
+	ConnectionProviders []ConnectionProvider
 }
 
 func (c *ManyConnectionProvider) ProvideConnection() (*Connection, error) {
-	if len(c.ReadBuffers) == 0 {
+	if len(c.ConnectionProviders) == 0 {
 		return nil, errors.New("no more connections")
 	}
 
-	rbuf := c.ReadBuffers[0]
-	c.ReadBuffers = c.ReadBuffers[1:]
+	cp := c.ConnectionProviders[0]
+	c.ConnectionProviders = c.ConnectionProviders[1:]
 
-	wbuf := c.WriteBuffers[0]
-	c.WriteBuffers = c.WriteBuffers[1:]
-
-	return NewConnection(
-		&fakeConn{
-			ReadBuffer:  rbuf,
-			WriteBuffer: wbuf,
-		},
-	), nil
+	return cp.ProvideConnection()
 }

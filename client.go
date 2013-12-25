@@ -30,72 +30,132 @@ func (c *Client) Connect() error {
 }
 
 func (c *Client) Create() (*CreateResponse, error) {
-	return (<-c.connection).Create()
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.Create()
 }
 
 func (c *Client) Destroy(handle string) (*DestroyResponse, error) {
-	return (<-c.connection).Destroy(handle)
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.Destroy(handle)
 }
 
 func (c *Client) Spawn(handle, script string, discardOutput bool) (*SpawnResponse, error) {
-	return (<-c.connection).Spawn(handle, script, discardOutput)
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.Spawn(handle, script, discardOutput)
 }
 
 func (c *Client) NetIn(handle string) (*NetInResponse, error) {
-	return (<-c.connection).NetIn(handle)
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.NetIn(handle)
 }
 
 func (c *Client) LimitMemory(handle string, limit uint64) (*LimitMemoryResponse, error) {
-	return (<-c.connection).LimitMemory(handle, limit)
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.LimitMemory(handle, limit)
 }
 
 func (c *Client) GetMemoryLimit(handle string) (uint64, error) {
-	return (<-c.connection).GetMemoryLimit(handle)
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.GetMemoryLimit(handle)
 }
 
 func (c *Client) LimitDisk(handle string, limit uint64) (*LimitDiskResponse, error) {
-	return (<-c.connection).LimitDisk(handle, limit)
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.LimitDisk(handle, limit)
 }
 
 func (c *Client) GetDiskLimit(handle string) (uint64, error) {
-	return (<-c.connection).GetDiskLimit(handle)
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.GetDiskLimit(handle)
 }
 
 func (c *Client) List() (*ListResponse, error) {
-	return (<-c.connection).List()
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.List()
 }
 
 func (c *Client) Info(handle string) (*InfoResponse, error) {
-	return (<-c.connection).Info(handle)
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.Info(handle)
 }
 
 func (c *Client) CopyIn(handle, src, dst string) (*CopyInResponse, error) {
-	return c.acquireConnection().CopyIn(handle, src, dst)
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.CopyIn(handle, src, dst)
 }
 
 func (c *Client) Stream(handle string, jobId uint32) (chan *StreamResponse, error) {
-	return c.acquireConnection().Stream(handle, jobId)
+	conn := c.acquireConnection()
+
+	responses, done, err := conn.Stream(handle, jobId)
+	if err != nil {
+		c.release(conn)
+		return nil, err
+	}
+
+	go func() {
+		<-done
+		c.release(conn)
+	}()
+
+	return responses, nil
 }
 
 func (c *Client) Run(handle, script string) (*RunResponse, error) {
-	return c.acquireConnection().Run(handle, script)
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.Run(handle, script)
 }
 
 func (c *Client) serveConnections(conn *Connection) {
-	for stop := false; !stop; {
-		select {
-		case <-conn.disconnected:
-			stop = true
-			break
+	select {
+	case <-conn.disconnected:
 
-		case c.connection <- conn:
-		}
+	case c.connection <- conn:
+
+	case <-time.After(5 * time.Second):
+		conn.Close()
 	}
+}
 
-	go c.serveConnections(c.acquireConnection())
+func (c *Client) release(conn *Connection) {
+	go c.serveConnections(conn)
 }
 
 func (c *Client) acquireConnection() *Connection {
+	select {
+	case conn := <-c.connection:
+		return conn
+
+	case <-time.After(1 * time.Second):
+		return c.connect()
+	}
+}
+
+func (c *Client) connect() *Connection {
 	for {
 		conn, err := c.connectionProvider.ProvideConnection()
 		if err == nil {
