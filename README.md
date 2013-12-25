@@ -1,7 +1,7 @@
 # Gordon
 
-A simple Warden client. Handles automatic reconnection, and implicitly creates
-new connections for blocking calls like `Run`, `Link`, and `Stream`.
+A simple Warden client. Automatically handles reconnecting and dynamically
+opening new connections to support concurrent requests.
 
 ## Installation
 
