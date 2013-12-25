@@ -1,4 +1,4 @@
-package warden
+package gordon_test
 
 import (
 	"bytes"
@@ -8,18 +8,19 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	. "launchpad.net/gocheck"
 
-	protocol "github.com/vito/gordon/protocol"
+	"github.com/vito/gordon"
+	"github.com/vito/gordon/warden"
 )
 
 func (w *WSuite) TestClientConnectWithFailingProvider(c *C) {
-	client := NewClient(&FailingConnectionProvider{})
+	client := gordon.NewClient(&FailingConnectionProvider{})
 	err := client.Connect()
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "nope!")
 }
 
 func (w *WSuite) TestClientConnectWithSuccessfulProvider(c *C) {
-	client := NewClient(NewFakeConnectionProvider(new(bytes.Buffer), new(bytes.Buffer)))
+	client := gordon.NewClient(NewFakeConnectionProvider(new(bytes.Buffer), new(bytes.Buffer)))
 	err := client.Connect()
 	c.Assert(err, IsNil)
 }
@@ -28,14 +29,14 @@ func (w *WSuite) TestClientContainerLifecycle(c *C) {
 	writeBuffer := new(bytes.Buffer)
 
 	fcp := NewFakeConnectionProvider(
-		protocol.Messages(
-			&protocol.CreateResponse{Handle: proto.String("foo")},
-			&protocol.DestroyResponse{},
+		warden.Messages(
+			&warden.CreateResponse{Handle: proto.String("foo")},
+			&warden.DestroyResponse{},
 		),
 		writeBuffer,
 	)
 
-	client := NewClient(fcp)
+	client := gordon.NewClient(fcp)
 
 	err := client.Connect()
 	c.Assert(err, IsNil)
@@ -51,9 +52,9 @@ func (w *WSuite) TestClientContainerLifecycle(c *C) {
 		string(writeBuffer.Bytes()),
 		Equals,
 		string(
-			protocol.Messages(
-				&protocol.CreateRequest{},
-				&protocol.DestroyRequest{Handle: proto.String("foo")},
+			warden.Messages(
+				&warden.CreateRequest{},
+				&warden.DestroyRequest{Handle: proto.String("foo")},
 			).Bytes(),
 		),
 	)
@@ -62,12 +63,12 @@ func (w *WSuite) TestClientContainerLifecycle(c *C) {
 func (w *WSuite) TestClientSpawnAndStreaming(c *C) {
 	writeBuf := new(bytes.Buffer)
 
-	client := NewClient(NewFakeConnectionProvider(
-		protocol.Messages(
-			&protocol.SpawnResponse{
+	client := gordon.NewClient(NewFakeConnectionProvider(
+		warden.Messages(
+			&warden.SpawnResponse{
 				JobId: proto.Uint32(42),
 			},
-			&protocol.StreamResponse{
+			&warden.StreamResponse{
 				Name: proto.String("stdout"),
 				Data: proto.String("some data for stdout"),
 			},
@@ -88,13 +89,13 @@ func (w *WSuite) TestClientSpawnAndStreaming(c *C) {
 		string(writeBuf.Bytes()),
 		Equals,
 		string(
-			protocol.Messages(
-				&protocol.SpawnRequest{
+			warden.Messages(
+				&warden.SpawnRequest{
 					Handle:        proto.String("foo"),
 					Script:        proto.String("echo some data for stdout"),
 					DiscardOutput: proto.Bool(true),
 				},
-				&protocol.StreamRequest{Handle: proto.String("foo"), JobId: proto.Uint32(42)},
+				&warden.StreamRequest{Handle: proto.String("foo"), JobId: proto.Uint32(42)},
 			).Bytes(),
 		),
 	)
@@ -108,15 +109,15 @@ func (w *WSuite) TestClientContainerInfo(c *C) {
 	writeBuffer := new(bytes.Buffer)
 
 	fcp := NewFakeConnectionProvider(
-		protocol.Messages(
-			&protocol.InfoResponse{
+		warden.Messages(
+			&warden.InfoResponse{
 				State: proto.String("stopped"),
 			},
 		),
 		writeBuffer,
 	)
 
-	client := NewClient(fcp)
+	client := gordon.NewClient(fcp)
 
 	err := client.Connect()
 	c.Assert(err, IsNil)
@@ -129,8 +130,8 @@ func (w *WSuite) TestClientContainerInfo(c *C) {
 		string(writeBuffer.Bytes()),
 		Equals,
 		string(
-			protocol.Messages(
-				&protocol.InfoRequest{
+			warden.Messages(
+				&warden.InfoRequest{
 					Handle: proto.String("handle"),
 				},
 			).Bytes(),
@@ -142,15 +143,15 @@ func (w *WSuite) TestClientContainerList(c *C) {
 	writeBuffer := new(bytes.Buffer)
 
 	fcp := NewFakeConnectionProvider(
-		protocol.Messages(
-			&protocol.ListResponse{
+		warden.Messages(
+			&warden.ListResponse{
 				Handles: []string{"container1", "container6"},
 			},
 		),
 		writeBuffer,
 	)
 
-	client := NewClient(fcp)
+	client := gordon.NewClient(fcp)
 
 	err := client.Connect()
 	c.Assert(err, IsNil)
@@ -163,8 +164,8 @@ func (w *WSuite) TestClientContainerList(c *C) {
 		string(writeBuffer.Bytes()),
 		Equals,
 		string(
-			protocol.Messages(
-				&protocol.ListRequest{},
+			warden.Messages(
+				&warden.ListRequest{},
 			).Bytes(),
 		),
 	)
@@ -175,25 +176,25 @@ func (w *WSuite) TestClientReconnects(c *C) {
 	secondWriteBuf := bytes.NewBuffer([]byte{})
 
 	mcp := &ManyConnectionProvider{
-		ConnectionProviders: []ConnectionProvider{
+		ConnectionProviders: []gordon.ConnectionProvider{
 			NewFakeConnectionProvider(
-				protocol.Messages(
-					&protocol.CreateResponse{Handle: proto.String("handle a")},
+				warden.Messages(
+					&warden.CreateResponse{Handle: proto.String("handle a")},
 					// no response for Create #2
 				),
 				firstWriteBuf,
 			),
 			NewFakeConnectionProvider(
-				protocol.Messages(
-					&protocol.DestroyResponse{},
-					&protocol.DestroyResponse{},
+				warden.Messages(
+					&warden.DestroyResponse{},
+					&warden.DestroyResponse{},
 				),
 				secondWriteBuf,
 			),
 		},
 	}
 
-	client := NewClient(mcp)
+	client := gordon.NewClient(mcp)
 
 	err := client.Connect()
 	c.Assert(err, IsNil)
@@ -214,15 +215,15 @@ func (w *WSuite) TestClientReconnects(c *C) {
 	c.Assert(
 		string(firstWriteBuf.Bytes()),
 		Equals,
-		string(protocol.Messages(&protocol.CreateRequest{}, &protocol.CreateRequest{}).Bytes()),
+		string(warden.Messages(&warden.CreateRequest{}, &warden.CreateRequest{}).Bytes()),
 	)
 
 	c.Assert(
 		string(secondWriteBuf.Bytes()),
 		Equals,
 		string(
-			protocol.Messages(
-				&protocol.DestroyRequest{
+			warden.Messages(
+				&warden.DestroyRequest{
 					Handle: proto.String("handle a"),
 				},
 			).Bytes(),
@@ -232,17 +233,17 @@ func (w *WSuite) TestClientReconnects(c *C) {
 
 type FailingConnectionProvider struct{}
 
-func (c *FailingConnectionProvider) ProvideConnection() (*Connection, error) {
+func (c *FailingConnectionProvider) ProvideConnection() (*gordon.Connection, error) {
 	return nil, errors.New("nope!")
 }
 
 type FakeConnectionProvider struct {
-	connection *Connection
+	connection *gordon.Connection
 }
 
 func NewFakeConnectionProvider(readBuffer, writeBuffer *bytes.Buffer) *FakeConnectionProvider {
 	return &FakeConnectionProvider{
-		connection: NewConnection(
+		connection: gordon.NewConnection(
 			&fakeConn{
 				ReadBuffer:  readBuffer,
 				WriteBuffer: writeBuffer,
@@ -251,15 +252,15 @@ func NewFakeConnectionProvider(readBuffer, writeBuffer *bytes.Buffer) *FakeConne
 	}
 }
 
-func (c *FakeConnectionProvider) ProvideConnection() (*Connection, error) {
+func (c *FakeConnectionProvider) ProvideConnection() (*gordon.Connection, error) {
 	return c.connection, nil
 }
 
 type ManyConnectionProvider struct {
-	ConnectionProviders []ConnectionProvider
+	ConnectionProviders []gordon.ConnectionProvider
 }
 
-func (c *ManyConnectionProvider) ProvideConnection() (*Connection, error) {
+func (c *ManyConnectionProvider) ProvideConnection() (*gordon.Connection, error) {
 	if len(c.ConnectionProviders) == 0 {
 		return nil, errors.New("no more connections")
 	}

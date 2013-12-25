@@ -1,4 +1,4 @@
-package warden
+package gordon
 
 type ConnectionProvider interface {
 	ProvideConnection() (*Connection, error)

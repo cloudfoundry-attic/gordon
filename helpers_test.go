@@ -1,4 +1,4 @@
-package warden
+package gordon_test
 
 import (
 	"bytes"

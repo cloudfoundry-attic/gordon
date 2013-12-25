@@ -1,9 +1,9 @@
-package warden
+package gordon
 
 import (
 	"time"
 
-	protocol "github.com/vito/gordon/protocol"
+	"github.com/vito/gordon/warden"
 )
 
 type Client struct {
@@ -31,35 +31,35 @@ func (c *Client) Connect() error {
 	return nil
 }
 
-func (c *Client) Create() (*protocol.CreateResponse, error) {
+func (c *Client) Create() (*warden.CreateResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.Create()
 }
 
-func (c *Client) Destroy(handle string) (*protocol.DestroyResponse, error) {
+func (c *Client) Destroy(handle string) (*warden.DestroyResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.Destroy(handle)
 }
 
-func (c *Client) Spawn(handle, script string, discardOutput bool) (*protocol.SpawnResponse, error) {
+func (c *Client) Spawn(handle, script string, discardOutput bool) (*warden.SpawnResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.Spawn(handle, script, discardOutput)
 }
 
-func (c *Client) NetIn(handle string) (*protocol.NetInResponse, error) {
+func (c *Client) NetIn(handle string) (*warden.NetInResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.NetIn(handle)
 }
 
-func (c *Client) LimitMemory(handle string, limit uint64) (*protocol.LimitMemoryResponse, error) {
+func (c *Client) LimitMemory(handle string, limit uint64) (*warden.LimitMemoryResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
@@ -73,7 +73,7 @@ func (c *Client) GetMemoryLimit(handle string) (uint64, error) {
 	return conn.GetMemoryLimit(handle)
 }
 
-func (c *Client) LimitDisk(handle string, limit uint64) (*protocol.LimitDiskResponse, error) {
+func (c *Client) LimitDisk(handle string, limit uint64) (*warden.LimitDiskResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
@@ -87,28 +87,28 @@ func (c *Client) GetDiskLimit(handle string) (uint64, error) {
 	return conn.GetDiskLimit(handle)
 }
 
-func (c *Client) List() (*protocol.ListResponse, error) {
+func (c *Client) List() (*warden.ListResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.List()
 }
 
-func (c *Client) Info(handle string) (*protocol.InfoResponse, error) {
+func (c *Client) Info(handle string) (*warden.InfoResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.Info(handle)
 }
 
-func (c *Client) CopyIn(handle, src, dst string) (*protocol.CopyInResponse, error) {
+func (c *Client) CopyIn(handle, src, dst string) (*warden.CopyInResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.CopyIn(handle, src, dst)
 }
 
-func (c *Client) Stream(handle string, jobId uint32) (chan *protocol.StreamResponse, error) {
+func (c *Client) Stream(handle string, jobId uint32) (chan *warden.StreamResponse, error) {
 	conn := c.acquireConnection()
 
 	responses, done, err := conn.Stream(handle, jobId)
@@ -125,7 +125,7 @@ func (c *Client) Stream(handle string, jobId uint32) (chan *protocol.StreamRespo
 	return responses, nil
 }
 
-func (c *Client) Run(handle, script string) (*protocol.RunResponse, error) {
+func (c *Client) Run(handle, script string) (*warden.RunResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
