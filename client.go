@@ -7,8 +7,6 @@ import (
 )
 
 type Client struct {
-	SocketPath string
-
 	connectionProvider ConnectionProvider
 	connection         chan *Connection
 }
