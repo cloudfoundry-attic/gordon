@@ -36,6 +36,13 @@ func (c *Client) Create() (*warden.CreateResponse, error) {
 	return conn.Create()
 }
 
+func (c *Client) Stop(handle string, background, kill bool) (*warden.StopResponse, error) {
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.Stop(handle, background, kill)
+}
+
 func (c *Client) Destroy(handle string) (*warden.DestroyResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)

@@ -66,6 +66,23 @@ func (c *Connection) Create() (*warden.CreateResponse, error) {
 	return res.(*warden.CreateResponse), nil
 }
 
+func (c *Connection) Stop(handle string, background, kill bool) (*warden.StopResponse, error) {
+	res, err := c.roundTrip(
+		&warden.StopRequest{
+			Handle:     proto.String(handle),
+			Background: proto.Bool(background),
+			Kill:       proto.Bool(kill),
+		},
+		&warden.StopResponse{},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return res.(*warden.StopResponse), nil
+}
+
 func (c *Connection) Destroy(handle string) (*warden.DestroyResponse, error) {
 	res, err := c.roundTrip(
 		&warden.DestroyRequest{Handle: proto.String(handle)},

@@ -31,6 +31,7 @@ func (w *WSuite) TestClientContainerLifecycle(c *C) {
 	fcp := NewFakeConnectionProvider(
 		warden.Messages(
 			&warden.CreateResponse{Handle: proto.String("foo")},
+			&warden.StopResponse{},
 			&warden.DestroyResponse{},
 		),
 		writeBuffer,
@@ -45,6 +46,9 @@ func (w *WSuite) TestClientContainerLifecycle(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(res.GetHandle(), Equals, "foo")
 
+	_, err = client.Stop("foo", true, true)
+	c.Assert(err, IsNil)
+
 	_, err = client.Destroy("foo")
 	c.Assert(err, IsNil)
 
@@ -54,6 +58,11 @@ func (w *WSuite) TestClientContainerLifecycle(c *C) {
 		string(
 			warden.Messages(
 				&warden.CreateRequest{},
+				&warden.StopRequest{
+					Handle:     proto.String("foo"),
+					Background: proto.Bool(true),
+					Kill:       proto.Bool(true),
+				},
 				&warden.DestroyRequest{Handle: proto.String("foo")},
 			).Bytes(),
 		),

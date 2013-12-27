@@ -35,6 +35,28 @@ func (w *WSuite) TestConnectionCreating(c *C) {
 	c.Assert(resp.GetHandle(), Equals, "foohandle")
 }
 
+func (w *WSuite) TestConnectionStopping(c *C) {
+	conn := &fakeConn{
+		ReadBuffer:  warden.Messages(&warden.StopResponse{}),
+		WriteBuffer: bytes.NewBuffer([]byte{}),
+	}
+
+	connection := gordon.NewConnection(conn)
+
+	_, err := connection.Stop("foo", true, true)
+	c.Assert(err, IsNil)
+
+	c.Assert(
+		string(conn.WriteBuffer.Bytes()),
+		Equals,
+		string(warden.Messages(&warden.StopRequest{
+			Handle:     proto.String("foo"),
+			Background: proto.Bool(true),
+			Kill:       proto.Bool(true),
+		}).Bytes()),
+	)
+}
+
 func (w *WSuite) TestConnectionDestroying(c *C) {
 	conn := &fakeConn{
 		ReadBuffer:  warden.Messages(&warden.DestroyResponse{}),
