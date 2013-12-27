@@ -3,13 +3,14 @@ package gordon_test
 import (
 	"bytes"
 	"errors"
+	"runtime"
 
 	"code.google.com/p/goprotobuf/proto"
 	. "launchpad.net/gocheck"
 
 	"github.com/vito/gordon"
-	. "github.com/vito/gordon/test_helpers"
 	"github.com/vito/gordon/connection"
+	. "github.com/vito/gordon/test_helpers"
 	"github.com/vito/gordon/warden"
 )
 
@@ -115,6 +116,52 @@ func (w *WSuite) TestClientSpawnAndStreaming(c *C) {
 	c.Assert(res.GetData(), Equals, "some data for stdout")
 }
 
+func (w *WSuite) TestClientSpawnAndLinking(c *C) {
+	writeBuf := new(bytes.Buffer)
+
+	client := gordon.NewClient(NewFakeConnectionProvider(
+		warden.Messages(
+			&warden.SpawnResponse{
+				JobId: proto.Uint32(42),
+			},
+			&warden.LinkResponse{
+				Stdout:     proto.String("some data for stdout"),
+				Stderr:     proto.String("some data for stderr"),
+				ExitStatus: proto.Uint32(137),
+			},
+		),
+		writeBuf,
+	))
+
+	err := client.Connect()
+	c.Assert(err, IsNil)
+
+	spawned, err := client.Spawn("foo", "echo some data for stdout", true)
+	c.Assert(err, IsNil)
+
+	res, err := client.Link("foo", spawned.GetJobId())
+	c.Assert(err, IsNil)
+
+	c.Assert(
+		string(writeBuf.Bytes()),
+		Equals,
+		string(
+			warden.Messages(
+				&warden.SpawnRequest{
+					Handle:        proto.String("foo"),
+					Script:        proto.String("echo some data for stdout"),
+					DiscardOutput: proto.Bool(true),
+				},
+				&warden.LinkRequest{Handle: proto.String("foo"), JobId: proto.Uint32(42)},
+			).Bytes(),
+		),
+	)
+
+	c.Assert(res.GetStdout(), Equals, "some data for stdout")
+	c.Assert(res.GetStderr(), Equals, "some data for stderr")
+	c.Assert(res.GetExitStatus(), Equals, uint32(137))
+}
+
 func (w *WSuite) TestClientContainerInfo(c *C) {
 	writeBuffer := new(bytes.Buffer)
 
@@ -212,6 +259,9 @@ func (w *WSuite) TestClientReconnects(c *C) {
 
 	c1, err := client.Create()
 	c.Assert(err, IsNil)
+
+	// let client notice disconnect
+	runtime.Gosched()
 
 	c2, err := client.Create()
 	c.Assert(err, IsNil)

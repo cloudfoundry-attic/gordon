@@ -3,8 +3,8 @@ package gordon
 import (
 	"time"
 
-	"github.com/vito/gordon/warden"
 	"github.com/vito/gordon/connection"
+	"github.com/vito/gordon/warden"
 )
 
 type Client struct {
@@ -56,6 +56,13 @@ func (c *Client) Spawn(handle, script string, discardOutput bool) (*warden.Spawn
 	defer c.release(conn)
 
 	return conn.Spawn(handle, script, discardOutput)
+}
+
+func (c *Client) Link(handle string, jobID uint32) (*warden.LinkResponse, error) {
+	conn := c.acquireConnection()
+	defer c.release(conn)
+
+	return conn.Link(handle, jobID)
 }
 
 func (c *Client) NetIn(handle string) (*warden.NetInResponse, error) {
@@ -114,10 +121,10 @@ func (c *Client) CopyIn(handle, src, dst string) (*warden.CopyInResponse, error)
 	return conn.CopyIn(handle, src, dst)
 }
 
-func (c *Client) Stream(handle string, jobId uint32) (chan *warden.StreamResponse, error) {
+func (c *Client) Stream(handle string, jobID uint32) (chan *warden.StreamResponse, error) {
 	conn := c.acquireConnection()
 
-	responses, done, err := conn.Stream(handle, jobId)
+	responses, done, err := conn.Stream(handle, jobID)
 	if err != nil {
 		c.release(conn)
 		return nil, err

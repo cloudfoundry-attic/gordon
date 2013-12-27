@@ -347,6 +347,35 @@ func (w *WSuite) TestConnectionCopyIn(c *C) {
 	)
 }
 
+func (w *WSuite) TestConnectionLink(c *C) {
+	conn := &FakeConn{
+		ReadBuffer: warden.Messages(&warden.LinkResponse{
+			Stdout:     proto.String("some data for stdout"),
+			Stderr:     proto.String("some data for stderr"),
+			ExitStatus: proto.Uint32(137),
+		}),
+		WriteBuffer: bytes.NewBuffer([]byte{}),
+	}
+
+	connection := connection.New(conn)
+
+	resp, err := connection.Link("foo-handle", 42)
+	c.Assert(err, IsNil)
+
+	c.Assert(
+		string(conn.WriteBuffer.Bytes()),
+		Equals,
+		string(warden.Messages(&warden.LinkRequest{
+			Handle: proto.String("foo-handle"),
+			JobId:  proto.Uint32(42),
+		}).Bytes()),
+	)
+
+	c.Assert(resp.GetExitStatus(), Equals, uint32(137))
+	c.Assert(resp.GetStdout(), Equals, "some data for stdout")
+	c.Assert(resp.GetStderr(), Equals, "some data for stderr")
+}
+
 func (w *WSuite) TestConnectionRun(c *C) {
 	conn := &FakeConn{
 		ReadBuffer:  warden.Messages(&warden.RunResponse{ExitStatus: proto.Uint32(137)}),
@@ -428,7 +457,7 @@ func (w *WSuite) TestConnectionStream(c *C) {
 
 func (w *WSuite) TestConnectionError(c *C) {
 	conn := &FakeConn{
-		ReadBuffer:  warden.Messages(
+		ReadBuffer: warden.Messages(
 			&warden.DestroyResponse{},
 			// EOF
 		),

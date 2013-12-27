@@ -141,6 +141,22 @@ func (c *Connection) Run(handle, script string) (*warden.RunResponse, error) {
 	return res.(*warden.RunResponse), nil
 }
 
+func (c *Connection) Link(handle string, jobID uint32) (*warden.LinkResponse, error) {
+	res, err := c.roundTrip(
+		&warden.LinkRequest{
+			Handle: proto.String(handle),
+			JobId:  proto.Uint32(jobID),
+		},
+		&warden.LinkResponse{},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return res.(*warden.LinkResponse), nil
+}
+
 func (c *Connection) Stream(handle string, jobId uint32) (chan *warden.StreamResponse, chan bool, error) {
 	err := c.sendMessage(
 		&warden.StreamRequest{

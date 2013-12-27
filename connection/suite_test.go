@@ -13,4 +13,3 @@ func Test(t *testing.T) { TestingT(t) }
 func init() {
 	Suite(&WSuite{})
 }
-
