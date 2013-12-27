@@ -428,6 +428,28 @@ func (w *WSuite) TestConnectionStream(c *C) {
 
 func (w *WSuite) TestConnectionError(c *C) {
 	conn := &FakeConn{
+		ReadBuffer:  warden.Messages(
+			&warden.DestroyResponse{},
+			// EOF
+		),
+		WriteBuffer: bytes.NewBuffer([]byte{}),
+	}
+
+	connection := connection.New(conn)
+
+	resp, err := connection.Destroy("foo-handle")
+	c.Assert(resp, Not(IsNil))
+	c.Assert(err, IsNil)
+
+	select {
+	case <-connection.Disconnected:
+	case <-time.After(1 * time.Second):
+		c.Error("should have disconnected due to EOF")
+	}
+}
+
+func (w *WSuite) TestConnectionDisconnects(c *C) {
+	conn := &FakeConn{
 		ReadBuffer:  warden.Messages(&warden.ErrorResponse{Message: proto.String("boo")}),
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}

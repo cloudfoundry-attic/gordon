@@ -14,13 +14,17 @@ import (
 	"github.com/vito/gordon/warden"
 )
 
+var DisconnectedError = errors.New("disconnected")
+
 type Connection struct {
+	Disconnected chan bool
+
+	messages chan *warden.Message
+
 	conn      net.Conn
 	read      *bufio.Reader
 	writeLock sync.Mutex
 	readLock  sync.Mutex
-
-	Disconnected chan bool
 }
 
 type WardenError struct {
@@ -43,14 +47,22 @@ func Connect(socketPath string) (*Connection, error) {
 }
 
 func New(conn net.Conn) *Connection {
-	return &Connection{
+	messages := make(chan *warden.Message)
+
+	connection := &Connection{
+		// buffered so that read and write errors
+		// can both send without blocking
+		Disconnected: make(chan bool, 2),
+
+		messages: messages,
+
 		conn: conn,
 		read: bufio.NewReader(conn),
-
-		// buffer size of 1 so that read and write errors
-		// can both send without blocking
-		Disconnected: make(chan bool, 1),
 	}
+
+	go connection.readMessages()
+
+	return connection
 }
 
 func (c *Connection) Close() {
@@ -330,29 +342,45 @@ func (c *Connection) sendMessage(req proto.Message) error {
 	)
 
 	if err != nil {
-		c.Disconnected <- true
+		c.disconnected()
 		return err
 	}
 
 	return nil
 }
 
-func (c *Connection) readResponse(response proto.Message) (proto.Message, error) {
-	payload, err := c.readPayload()
-	if err != nil {
-		c.Disconnected <- true
-		return nil, err
-	}
+func (c *Connection) readMessages() {
+	for {
+		payload, err := c.readPayload()
+		if err != nil {
+			c.disconnected()
+			break
+		}
 
-	message := &warden.Message{}
-	err = proto.Unmarshal(payload, message)
-	if err != nil {
-		return nil, err
+		message := &warden.Message{}
+		err = proto.Unmarshal(payload, message)
+		if err != nil {
+			continue
+		}
+
+		c.messages <- message
+	}
+}
+
+func (c *Connection) disconnected() {
+	c.Disconnected <- true
+	close(c.messages)
+}
+
+func (c *Connection) readResponse(response proto.Message) (proto.Message, error) {
+	message, ok := <-c.messages
+	if !ok {
+		return nil, DisconnectedError
 	}
 
 	if message.GetType() == warden.Message_Error {
 		errorResponse := &warden.ErrorResponse{}
-		err = proto.Unmarshal(message.Payload, errorResponse)
+		err := proto.Unmarshal(message.Payload, errorResponse)
 		if err != nil {
 			return nil, errors.New("error unmarshalling error!")
 		}
@@ -375,7 +403,7 @@ func (c *Connection) readResponse(response proto.Message) (proto.Message, error)
 		)
 	}
 
-	err = proto.Unmarshal(message.GetPayload(), response)
+	err := proto.Unmarshal(message.GetPayload(), response)
 
 	return response, err
 }

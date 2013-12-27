@@ -3,7 +3,6 @@ package gordon_test
 import (
 	"bytes"
 	"errors"
-	"runtime"
 
 	"code.google.com/p/goprotobuf/proto"
 	. "launchpad.net/gocheck"
@@ -191,12 +190,13 @@ func (w *WSuite) TestClientReconnects(c *C) {
 			NewFakeConnectionProvider(
 				warden.Messages(
 					&warden.CreateResponse{Handle: proto.String("handle a")},
-					// no response for Create #2
+					// disconnect
 				),
 				firstWriteBuf,
 			),
 			NewFakeConnectionProvider(
 				warden.Messages(
+					&warden.CreateResponse{Handle: proto.String("handle b")},
 					&warden.DestroyResponse{},
 					&warden.DestroyResponse{},
 				),
@@ -213,20 +213,19 @@ func (w *WSuite) TestClientReconnects(c *C) {
 	c1, err := client.Create()
 	c.Assert(err, IsNil)
 
-	_, err = client.Create()
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "EOF")
-
-	// let the client notice its connection was dropped
-	runtime.Gosched()
+	c2, err := client.Create()
+	c.Assert(err, IsNil)
 
 	_, err = client.Destroy(c1.GetHandle())
+	c.Assert(err, IsNil)
+
+	_, err = client.Destroy(c2.GetHandle())
 	c.Assert(err, IsNil)
 
 	c.Assert(
 		string(firstWriteBuf.Bytes()),
 		Equals,
-		string(warden.Messages(&warden.CreateRequest{}, &warden.CreateRequest{}).Bytes()),
+		string(warden.Messages(&warden.CreateRequest{}).Bytes()),
 	)
 
 	c.Assert(
@@ -234,8 +233,12 @@ func (w *WSuite) TestClientReconnects(c *C) {
 		Equals,
 		string(
 			warden.Messages(
+				&warden.CreateRequest{},
 				&warden.DestroyRequest{
 					Handle: proto.String("handle a"),
+				},
+				&warden.DestroyRequest{
+					Handle: proto.String("handle b"),
 				},
 			).Bytes(),
 		),
