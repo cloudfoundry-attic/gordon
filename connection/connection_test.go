@@ -1,4 +1,4 @@
-package gordon_test
+package connection_test
 
 import (
 	"bytes"
@@ -8,12 +8,13 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	. "launchpad.net/gocheck"
 
-	"github.com/vito/gordon"
+	"github.com/vito/gordon/connection"
+	. "github.com/vito/gordon/test_helpers"
 	"github.com/vito/gordon/warden"
 )
 
 func (w *WSuite) TestConnectionCreating(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer: warden.Messages(&warden.CreateResponse{
 			Handle: proto.String("foohandle"),
 		}),
@@ -21,7 +22,7 @@ func (w *WSuite) TestConnectionCreating(c *C) {
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	resp, err := connection.Create()
 	c.Assert(err, IsNil)
@@ -36,12 +37,12 @@ func (w *WSuite) TestConnectionCreating(c *C) {
 }
 
 func (w *WSuite) TestConnectionStopping(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer:  warden.Messages(&warden.StopResponse{}),
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	_, err := connection.Stop("foo", true, true)
 	c.Assert(err, IsNil)
@@ -58,12 +59,12 @@ func (w *WSuite) TestConnectionStopping(c *C) {
 }
 
 func (w *WSuite) TestConnectionDestroying(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer:  warden.Messages(&warden.DestroyResponse{}),
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	_, err := connection.Destroy("foo")
 	c.Assert(err, IsNil)
@@ -76,12 +77,12 @@ func (w *WSuite) TestConnectionDestroying(c *C) {
 }
 
 func (w *WSuite) TestMemoryLimiting(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer:  warden.Messages(&warden.LimitMemoryResponse{LimitInBytes: proto.Uint64(40)}),
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	res, err := connection.LimitMemory("foo", 42)
 	c.Assert(err, IsNil)
@@ -103,12 +104,12 @@ func (w *WSuite) TestMemoryLimiting(c *C) {
 }
 
 func (w *WSuite) TestGettingMemoryLimit(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer:  warden.Messages(&warden.LimitMemoryResponse{LimitInBytes: proto.Uint64(40)}),
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	memoryLimit, err := connection.GetMemoryLimit("foo")
 	c.Assert(err, IsNil)
@@ -128,12 +129,12 @@ func (w *WSuite) TestGettingMemoryLimit(c *C) {
 }
 
 func (w *WSuite) TestGettingMemoryLimitThatLooksFishy(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer:  warden.Messages(&warden.LimitMemoryResponse{LimitInBytes: proto.Uint64(math.MaxInt64)}),
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	memoryLimit, err := connection.GetMemoryLimit("foo")
 	c.Assert(err, IsNil)
@@ -153,12 +154,12 @@ func (w *WSuite) TestGettingMemoryLimitThatLooksFishy(c *C) {
 }
 
 func (w *WSuite) TestDiskLimiting(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer:  warden.Messages(&warden.LimitDiskResponse{ByteLimit: proto.Uint64(40)}),
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	res, err := connection.LimitDisk("foo", 42)
 	c.Assert(err, IsNil)
@@ -180,12 +181,12 @@ func (w *WSuite) TestDiskLimiting(c *C) {
 }
 
 func (w *WSuite) TestGettingDiskLimit(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer:  warden.Messages(&warden.LimitDiskResponse{ByteLimit: proto.Uint64(40)}),
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	diskLimit, err := connection.GetDiskLimit("foo")
 	c.Assert(err, IsNil)
@@ -205,7 +206,7 @@ func (w *WSuite) TestGettingDiskLimit(c *C) {
 }
 
 func (w *WSuite) TestConnectionSpawn(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer: warden.Messages(
 			&warden.SpawnResponse{JobId: proto.Uint32(42)},
 			&warden.SpawnResponse{JobId: proto.Uint32(43)},
@@ -213,7 +214,7 @@ func (w *WSuite) TestConnectionSpawn(c *C) {
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	resp, err := connection.Spawn("foo-handle", "echo hi", true)
 	c.Assert(err, IsNil)
@@ -247,7 +248,7 @@ func (w *WSuite) TestConnectionSpawn(c *C) {
 }
 
 func (w *WSuite) TestConnectionNetIn(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer: warden.Messages(
 			&warden.NetInResponse{
 				HostPort:      proto.Uint32(7331),
@@ -257,7 +258,7 @@ func (w *WSuite) TestConnectionNetIn(c *C) {
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	resp, err := connection.NetIn("foo-handle")
 	c.Assert(err, IsNil)
@@ -275,7 +276,7 @@ func (w *WSuite) TestConnectionNetIn(c *C) {
 }
 
 func (w *WSuite) TestConnectionList(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer: warden.Messages(
 			&warden.ListResponse{
 				Handles: []string{"container1", "container2", "container3"},
@@ -284,7 +285,7 @@ func (w *WSuite) TestConnectionList(c *C) {
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	resp, err := connection.List()
 	c.Assert(err, IsNil)
@@ -299,7 +300,7 @@ func (w *WSuite) TestConnectionList(c *C) {
 }
 
 func (w *WSuite) TestConnectionInfo(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer: warden.Messages(
 			&warden.InfoResponse{
 				State: proto.String("active"),
@@ -308,7 +309,7 @@ func (w *WSuite) TestConnectionInfo(c *C) {
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	resp, err := connection.Info("handle")
 	c.Assert(err, IsNil)
@@ -325,12 +326,12 @@ func (w *WSuite) TestConnectionInfo(c *C) {
 }
 
 func (w *WSuite) TestConnectionCopyIn(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer:  warden.Messages(&warden.CopyInResponse{}),
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	_, err := connection.CopyIn("foo-handle", "/foo", "/bar")
 	c.Assert(err, IsNil)
@@ -347,12 +348,12 @@ func (w *WSuite) TestConnectionCopyIn(c *C) {
 }
 
 func (w *WSuite) TestConnectionRun(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer:  warden.Messages(&warden.RunResponse{ExitStatus: proto.Uint32(137)}),
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	resp, err := connection.Run("foo-handle", "echo hi")
 	c.Assert(err, IsNil)
@@ -370,7 +371,7 @@ func (w *WSuite) TestConnectionRun(c *C) {
 }
 
 func (w *WSuite) TestConnectionStream(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer: warden.Messages(
 			&warden.StreamResponse{Name: proto.String("stdout"), Data: proto.String("1")},
 			&warden.StreamResponse{Name: proto.String("stderr"), Data: proto.String("2")},
@@ -379,7 +380,7 @@ func (w *WSuite) TestConnectionStream(c *C) {
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	resp, done, err := connection.Stream("foo-handle", 42)
 	c.Assert(err, IsNil)
@@ -426,12 +427,12 @@ func (w *WSuite) TestConnectionStream(c *C) {
 }
 
 func (w *WSuite) TestConnectionError(c *C) {
-	conn := &fakeConn{
+	conn := &FakeConn{
 		ReadBuffer:  warden.Messages(&warden.ErrorResponse{Message: proto.String("boo")}),
 		WriteBuffer: bytes.NewBuffer([]byte{}),
 	}
 
-	connection := gordon.NewConnection(conn)
+	connection := connection.New(conn)
 
 	resp, err := connection.Run("foo-handle", "echo hi")
 	c.Assert(resp, IsNil)

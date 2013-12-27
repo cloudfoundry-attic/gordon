@@ -1,31 +1,20 @@
-package gordon_test
+package test_helpers
 
 import (
 	"bytes"
 	"errors"
 	"net"
-	"testing"
 	"time"
-
-	. "launchpad.net/gocheck"
 )
 
-type WSuite struct{}
-
-func Test(t *testing.T) { TestingT(t) }
-
-func init() {
-	Suite(&WSuite{})
-}
-
-type fakeConn struct {
+type FakeConn struct {
 	ReadBuffer  *bytes.Buffer
 	WriteBuffer *bytes.Buffer
 	WriteChan   chan string
 	Closed      bool
 }
 
-func (f *fakeConn) Read(b []byte) (n int, err error) {
+func (f *FakeConn) Read(b []byte) (n int, err error) {
 	if f.Closed {
 		return 0, errors.New("buffer closed")
 	}
@@ -33,7 +22,7 @@ func (f *fakeConn) Read(b []byte) (n int, err error) {
 	return f.ReadBuffer.Read(b)
 }
 
-func (f *fakeConn) Write(b []byte) (n int, err error) {
+func (f *FakeConn) Write(b []byte) (n int, err error) {
 	if f.Closed {
 		return 0, errors.New("buffer closed")
 	}
@@ -45,29 +34,29 @@ func (f *fakeConn) Write(b []byte) (n int, err error) {
 	return f.WriteBuffer.Write(b)
 }
 
-func (f *fakeConn) Close() error {
+func (f *FakeConn) Close() error {
 	f.Closed = true
 	return nil
 }
 
-func (f *fakeConn) SetDeadline(time.Time) error {
+func (f *FakeConn) SetDeadline(time.Time) error {
 	return nil
 }
 
-func (f *fakeConn) SetReadDeadline(time.Time) error {
+func (f *FakeConn) SetReadDeadline(time.Time) error {
 	return nil
 }
 
-func (f *fakeConn) SetWriteDeadline(time.Time) error {
+func (f *FakeConn) SetWriteDeadline(time.Time) error {
 	return nil
 }
 
-func (f *fakeConn) LocalAddr() net.Addr {
+func (f *FakeConn) LocalAddr() net.Addr {
 	addr, _ := net.ResolveTCPAddr("tcp", "0.0.0.0:4222")
 	return addr
 }
 
-func (f *fakeConn) RemoteAddr() net.Addr {
+func (f *FakeConn) RemoteAddr() net.Addr {
 	addr, _ := net.ResolveTCPAddr("tcp", "0.0.0.0:65525")
 	return addr
 }

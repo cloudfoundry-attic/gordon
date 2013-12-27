@@ -1,4 +1,4 @@
-package gordon
+package connection
 
 import (
 	"bufio"
@@ -20,7 +20,7 @@ type Connection struct {
 	writeLock sync.Mutex
 	readLock  sync.Mutex
 
-	disconnected chan bool
+	Disconnected chan bool
 }
 
 type WardenError struct {
@@ -33,23 +33,23 @@ func (e *WardenError) Error() string {
 	return e.Message
 }
 
-func Connect(socket_path string) (*Connection, error) {
-	conn, err := net.Dial("unix", socket_path)
+func Connect(socketPath string) (*Connection, error) {
+	conn, err := net.Dial("unix", socketPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewConnection(conn), nil
+	return New(conn), nil
 }
 
-func NewConnection(conn net.Conn) *Connection {
+func New(conn net.Conn) *Connection {
 	return &Connection{
 		conn: conn,
 		read: bufio.NewReader(conn),
 
 		// buffer size of 1 so that read and write errors
 		// can both send without blocking
-		disconnected: make(chan bool, 1),
+		Disconnected: make(chan bool, 1),
 	}
 }
 
@@ -330,7 +330,7 @@ func (c *Connection) sendMessage(req proto.Message) error {
 	)
 
 	if err != nil {
-		c.disconnected <- true
+		c.Disconnected <- true
 		return err
 	}
 
@@ -340,7 +340,7 @@ func (c *Connection) sendMessage(req proto.Message) error {
 func (c *Connection) readResponse(response proto.Message) (proto.Message, error) {
 	payload, err := c.readPayload()
 	if err != nil {
-		c.disconnected <- true
+		c.Disconnected <- true
 		return nil, err
 	}
 

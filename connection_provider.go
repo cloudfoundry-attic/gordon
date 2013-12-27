@@ -1,13 +1,17 @@
 package gordon
 
+import (
+	"github.com/vito/gordon/connection"
+)
+
 type ConnectionProvider interface {
-	ProvideConnection() (*Connection, error)
+	ProvideConnection() (*connection.Connection, error)
 }
 
 type ConnectionInfo struct {
 	SocketPath string
 }
 
-func (i *ConnectionInfo) ProvideConnection() (*Connection, error) {
-	return Connect(i.SocketPath)
+func (i *ConnectionInfo) ProvideConnection() (*connection.Connection, error) {
+	return connection.Connect(i.SocketPath)
 }

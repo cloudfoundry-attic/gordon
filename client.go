@@ -4,17 +4,18 @@ import (
 	"time"
 
 	"github.com/vito/gordon/warden"
+	"github.com/vito/gordon/connection"
 )
 
 type Client struct {
 	connectionProvider ConnectionProvider
-	connection         chan *Connection
+	connection         chan *connection.Connection
 }
 
 func NewClient(cp ConnectionProvider) *Client {
 	return &Client{
 		connectionProvider: cp,
-		connection:         make(chan *Connection),
+		connection:         make(chan *connection.Connection),
 	}
 }
 
@@ -24,7 +25,7 @@ func (c *Client) Connect() error {
 		return err
 	}
 
-	go c.serveConnections(conn)
+	go c.serveConnection(conn)
 
 	return nil
 }
@@ -137,9 +138,9 @@ func (c *Client) Run(handle, script string) (*warden.RunResponse, error) {
 	return conn.Run(handle, script)
 }
 
-func (c *Client) serveConnections(conn *Connection) {
+func (c *Client) serveConnection(conn *connection.Connection) {
 	select {
-	case <-conn.disconnected:
+	case <-conn.Disconnected:
 
 	case c.connection <- conn:
 
@@ -148,11 +149,11 @@ func (c *Client) serveConnections(conn *Connection) {
 	}
 }
 
-func (c *Client) release(conn *Connection) {
-	go c.serveConnections(conn)
+func (c *Client) release(conn *connection.Connection) {
+	go c.serveConnection(conn)
 }
 
-func (c *Client) acquireConnection() *Connection {
+func (c *Client) acquireConnection() *connection.Connection {
 	select {
 	case conn := <-c.connection:
 		return conn
@@ -162,7 +163,7 @@ func (c *Client) acquireConnection() *Connection {
 	}
 }
 
-func (c *Client) connect() *Connection {
+func (c *Client) connect() *connection.Connection {
 	for {
 		conn, err := c.connectionProvider.ProvideConnection()
 		if err == nil {

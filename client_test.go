@@ -9,6 +9,8 @@ import (
 	. "launchpad.net/gocheck"
 
 	"github.com/vito/gordon"
+	. "github.com/vito/gordon/test_helpers"
+	"github.com/vito/gordon/connection"
 	"github.com/vito/gordon/warden"
 )
 
@@ -242,18 +244,18 @@ func (w *WSuite) TestClientReconnects(c *C) {
 
 type FailingConnectionProvider struct{}
 
-func (c *FailingConnectionProvider) ProvideConnection() (*gordon.Connection, error) {
+func (c *FailingConnectionProvider) ProvideConnection() (*connection.Connection, error) {
 	return nil, errors.New("nope!")
 }
 
 type FakeConnectionProvider struct {
-	connection *gordon.Connection
+	connection *connection.Connection
 }
 
 func NewFakeConnectionProvider(readBuffer, writeBuffer *bytes.Buffer) *FakeConnectionProvider {
 	return &FakeConnectionProvider{
-		connection: gordon.NewConnection(
-			&fakeConn{
+		connection: connection.New(
+			&FakeConn{
 				ReadBuffer:  readBuffer,
 				WriteBuffer: writeBuffer,
 			},
@@ -261,7 +263,7 @@ func NewFakeConnectionProvider(readBuffer, writeBuffer *bytes.Buffer) *FakeConne
 	}
 }
 
-func (c *FakeConnectionProvider) ProvideConnection() (*gordon.Connection, error) {
+func (c *FakeConnectionProvider) ProvideConnection() (*connection.Connection, error) {
 	return c.connection, nil
 }
 
@@ -269,7 +271,7 @@ type ManyConnectionProvider struct {
 	ConnectionProviders []gordon.ConnectionProvider
 }
 
-func (c *ManyConnectionProvider) ProvideConnection() (*gordon.Connection, error) {
+func (c *ManyConnectionProvider) ProvideConnection() (*connection.Connection, error) {
 	if len(c.ConnectionProviders) == 0 {
 		return nil, errors.New("no more connections")
 	}
