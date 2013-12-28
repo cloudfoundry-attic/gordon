@@ -370,6 +370,7 @@ func (c *Connection) readMessages() {
 		payload, err := c.readPayload()
 		if err != nil {
 			c.disconnected()
+			close(c.messages)
 			break
 		}
 
@@ -385,7 +386,6 @@ func (c *Connection) readMessages() {
 
 func (c *Connection) disconnected() {
 	c.Disconnected <- true
-	close(c.messages)
 }
 
 func (c *Connection) readResponse(response proto.Message) (proto.Message, error) {
