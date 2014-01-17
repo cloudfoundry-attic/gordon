@@ -9,9 +9,10 @@ type ConnectionProvider interface {
 }
 
 type ConnectionInfo struct {
-	SocketPath string
+	Network string
+	Addr    string
 }
 
 func (i *ConnectionInfo) ProvideConnection() (*connection.Connection, error) {
-	return connection.Connect(i.SocketPath)
+	return connection.Connect(i.Network, i.Addr)
 }

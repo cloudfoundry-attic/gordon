@@ -37,8 +37,8 @@ func (e *WardenError) Error() string {
 	return e.Message
 }
 
-func Connect(socketPath string) (*Connection, error) {
-	conn, err := net.Dial("unix", socketPath)
+func Connect(network, addr string) (*Connection, error) {
+	conn, err := net.Dial(network, addr)
 	if err != nil {
 		return nil, err
 	}
