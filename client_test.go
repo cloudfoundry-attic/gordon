@@ -5,7 +5,7 @@ import (
 	"errors"
 	"runtime"
 
-	"code.google.com/p/goprotobuf/proto"
+	"code.google.com/p/gogoprotobuf/proto"
 	. "launchpad.net/gocheck"
 
 	"github.com/vito/gordon"

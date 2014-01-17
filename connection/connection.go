@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"sync"
 
-	"code.google.com/p/goprotobuf/proto"
+	"code.google.com/p/gogoprotobuf/proto"
 
 	"github.com/vito/gordon/warden"
 )
