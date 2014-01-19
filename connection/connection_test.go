@@ -491,3 +491,24 @@ func (w *WSuite) TestConnectionDisconnects(c *C) {
 
 	c.Assert(err.Error(), Equals, "boo")
 }
+
+func (w *WSuite) TestConnectionRoundTrip(c *C) {
+	conn := &FakeConn{
+		ReadBuffer:  warden.Messages(&warden.RunResponse{ExitStatus: proto.Uint32(137)}),
+		WriteBuffer: bytes.NewBuffer([]byte{}),
+	}
+
+	connection := connection.New(conn)
+
+	resp, err := connection.RoundTrip(
+		&warden.RunRequest{
+			Handle: proto.String("some-handle"),
+			Script: proto.String("foo"),
+		},
+		&warden.RunResponse{},
+	)
+
+	c.Assert(err, IsNil)
+
+	c.Assert(resp.(*warden.RunResponse).GetExitStatus(), Equals, uint32(137))
+}

@@ -70,7 +70,7 @@ func (c *Connection) Close() {
 }
 
 func (c *Connection) Create() (*warden.CreateResponse, error) {
-	res, err := c.roundTrip(&warden.CreateRequest{}, &warden.CreateResponse{})
+	res, err := c.RoundTrip(&warden.CreateRequest{}, &warden.CreateResponse{})
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (c *Connection) Create() (*warden.CreateResponse, error) {
 }
 
 func (c *Connection) Stop(handle string, background, kill bool) (*warden.StopResponse, error) {
-	res, err := c.roundTrip(
+	res, err := c.RoundTrip(
 		&warden.StopRequest{
 			Handle:     proto.String(handle),
 			Background: proto.Bool(background),
@@ -96,7 +96,7 @@ func (c *Connection) Stop(handle string, background, kill bool) (*warden.StopRes
 }
 
 func (c *Connection) Destroy(handle string) (*warden.DestroyResponse, error) {
-	res, err := c.roundTrip(
+	res, err := c.RoundTrip(
 		&warden.DestroyRequest{Handle: proto.String(handle)},
 		&warden.DestroyResponse{},
 	)
@@ -109,7 +109,7 @@ func (c *Connection) Destroy(handle string) (*warden.DestroyResponse, error) {
 }
 
 func (c *Connection) Spawn(handle, script string, discardOutput bool) (*warden.SpawnResponse, error) {
-	res, err := c.roundTrip(
+	res, err := c.RoundTrip(
 		&warden.SpawnRequest{
 			Handle:        proto.String(handle),
 			Script:        proto.String(script),
@@ -126,7 +126,7 @@ func (c *Connection) Spawn(handle, script string, discardOutput bool) (*warden.S
 }
 
 func (c *Connection) Run(handle, script string) (*warden.RunResponse, error) {
-	res, err := c.roundTrip(
+	res, err := c.RoundTrip(
 		&warden.RunRequest{
 			Handle: proto.String(handle),
 			Script: proto.String(script),
@@ -142,7 +142,7 @@ func (c *Connection) Run(handle, script string) (*warden.RunResponse, error) {
 }
 
 func (c *Connection) Link(handle string, jobID uint32) (*warden.LinkResponse, error) {
-	res, err := c.roundTrip(
+	res, err := c.RoundTrip(
 		&warden.LinkRequest{
 			Handle: proto.String(handle),
 			JobId:  proto.Uint32(jobID),
@@ -198,7 +198,7 @@ func (c *Connection) Stream(handle string, jobId uint32) (chan *warden.StreamRes
 }
 
 func (c *Connection) NetIn(handle string) (*warden.NetInResponse, error) {
-	res, err := c.roundTrip(
+	res, err := c.RoundTrip(
 		&warden.NetInRequest{Handle: proto.String(handle)},
 		&warden.NetInResponse{},
 	)
@@ -211,7 +211,7 @@ func (c *Connection) NetIn(handle string) (*warden.NetInResponse, error) {
 }
 
 func (c *Connection) LimitMemory(handle string, limit uint64) (*warden.LimitMemoryResponse, error) {
-	res, err := c.roundTrip(
+	res, err := c.RoundTrip(
 		&warden.LimitMemoryRequest{
 			Handle:       proto.String(handle),
 			LimitInBytes: proto.Uint64(limit),
@@ -227,7 +227,7 @@ func (c *Connection) LimitMemory(handle string, limit uint64) (*warden.LimitMemo
 }
 
 func (c *Connection) GetMemoryLimit(handle string) (uint64, error) {
-	res, err := c.roundTrip(
+	res, err := c.RoundTrip(
 		&warden.LimitMemoryRequest{
 			Handle: proto.String(handle),
 		},
@@ -247,7 +247,7 @@ func (c *Connection) GetMemoryLimit(handle string) (uint64, error) {
 }
 
 func (c *Connection) LimitDisk(handle string, limit uint64) (*warden.LimitDiskResponse, error) {
-	res, err := c.roundTrip(
+	res, err := c.RoundTrip(
 		&warden.LimitDiskRequest{
 			Handle:    proto.String(handle),
 			ByteLimit: proto.Uint64(limit),
@@ -263,7 +263,7 @@ func (c *Connection) LimitDisk(handle string, limit uint64) (*warden.LimitDiskRe
 }
 
 func (c *Connection) GetDiskLimit(handle string) (uint64, error) {
-	res, err := c.roundTrip(
+	res, err := c.RoundTrip(
 		&warden.LimitDiskRequest{
 			Handle: proto.String(handle),
 		},
@@ -278,7 +278,7 @@ func (c *Connection) GetDiskLimit(handle string) (uint64, error) {
 }
 
 func (c *Connection) CopyIn(handle, src, dst string) (*warden.CopyInResponse, error) {
-	res, err := c.roundTrip(
+	res, err := c.RoundTrip(
 		&warden.CopyInRequest{
 			Handle:  proto.String(handle),
 			SrcPath: proto.String(src),
@@ -295,7 +295,7 @@ func (c *Connection) CopyIn(handle, src, dst string) (*warden.CopyInResponse, er
 }
 
 func (c *Connection) List() (*warden.ListResponse, error) {
-	res, err := c.roundTrip(&warden.ListRequest{}, &warden.ListResponse{})
+	res, err := c.RoundTrip(&warden.ListRequest{}, &warden.ListResponse{})
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +304,7 @@ func (c *Connection) List() (*warden.ListResponse, error) {
 }
 
 func (c *Connection) Info(handle string) (*warden.InfoResponse, error) {
-	res, err := c.roundTrip(&warden.InfoRequest{
+	res, err := c.RoundTrip(&warden.InfoRequest{
 		Handle: proto.String(handle),
 	}, &warden.InfoResponse{})
 	if err != nil {
@@ -314,7 +314,7 @@ func (c *Connection) Info(handle string) (*warden.InfoResponse, error) {
 	return res.(*warden.InfoResponse), nil
 }
 
-func (c *Connection) roundTrip(request proto.Message, response proto.Message) (proto.Message, error) {
+func (c *Connection) RoundTrip(request proto.Message, response proto.Message) (proto.Message, error) {
 	err := c.sendMessage(request)
 	if err != nil {
 		return nil, err
