@@ -7,19 +7,39 @@ import (
 	"github.com/vito/gordon/warden"
 )
 
-type Client struct {
+type Client interface {
+	Connect() error
+
+	Create() (*warden.CreateResponse, error)
+	Stop(handle string, background, kill bool) (*warden.StopResponse, error)
+	Destroy(handle string) (*warden.DestroyResponse, error)
+	Spawn(handle, script string, discardOutput bool) (*warden.SpawnResponse, error)
+	Link(handle string, jobID uint32) (*warden.LinkResponse, error)
+	NetIn(handle string) (*warden.NetInResponse, error)
+	LimitMemory(handle string, limit uint64) (*warden.LimitMemoryResponse, error)
+	GetMemoryLimit(handle string) (uint64, error)
+	LimitDisk(handle string, limit uint64) (*warden.LimitDiskResponse, error)
+	GetDiskLimit(handle string) (uint64, error)
+	List() (*warden.ListResponse, error)
+	Info(handle string) (*warden.InfoResponse, error)
+	CopyIn(handle, src, dst string) (*warden.CopyInResponse, error)
+	Stream(handle string, jobID uint32) (<-chan *warden.StreamResponse, error)
+	Run(handle, script string) (*warden.RunResponse, error)
+}
+
+type client struct {
 	connectionProvider ConnectionProvider
 	connection         chan *connection.Connection
 }
 
-func NewClient(cp ConnectionProvider) *Client {
-	return &Client{
+func NewClient(cp ConnectionProvider) Client {
+	return &client{
 		connectionProvider: cp,
 		connection:         make(chan *connection.Connection),
 	}
 }
 
-func (c *Client) Connect() error {
+func (c *client) Connect() error {
 	conn, err := c.connectionProvider.ProvideConnection()
 	if err != nil {
 		return err
@@ -30,98 +50,98 @@ func (c *Client) Connect() error {
 	return nil
 }
 
-func (c *Client) Create() (*warden.CreateResponse, error) {
+func (c *client) Create() (*warden.CreateResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.Create()
 }
 
-func (c *Client) Stop(handle string, background, kill bool) (*warden.StopResponse, error) {
+func (c *client) Stop(handle string, background, kill bool) (*warden.StopResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.Stop(handle, background, kill)
 }
 
-func (c *Client) Destroy(handle string) (*warden.DestroyResponse, error) {
+func (c *client) Destroy(handle string) (*warden.DestroyResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.Destroy(handle)
 }
 
-func (c *Client) Spawn(handle, script string, discardOutput bool) (*warden.SpawnResponse, error) {
+func (c *client) Spawn(handle, script string, discardOutput bool) (*warden.SpawnResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.Spawn(handle, script, discardOutput)
 }
 
-func (c *Client) Link(handle string, jobID uint32) (*warden.LinkResponse, error) {
+func (c *client) Link(handle string, jobID uint32) (*warden.LinkResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.Link(handle, jobID)
 }
 
-func (c *Client) NetIn(handle string) (*warden.NetInResponse, error) {
+func (c *client) NetIn(handle string) (*warden.NetInResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.NetIn(handle)
 }
 
-func (c *Client) LimitMemory(handle string, limit uint64) (*warden.LimitMemoryResponse, error) {
+func (c *client) LimitMemory(handle string, limit uint64) (*warden.LimitMemoryResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.LimitMemory(handle, limit)
 }
 
-func (c *Client) GetMemoryLimit(handle string) (uint64, error) {
+func (c *client) GetMemoryLimit(handle string) (uint64, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.GetMemoryLimit(handle)
 }
 
-func (c *Client) LimitDisk(handle string, limit uint64) (*warden.LimitDiskResponse, error) {
+func (c *client) LimitDisk(handle string, limit uint64) (*warden.LimitDiskResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.LimitDisk(handle, limit)
 }
 
-func (c *Client) GetDiskLimit(handle string) (uint64, error) {
+func (c *client) GetDiskLimit(handle string) (uint64, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.GetDiskLimit(handle)
 }
 
-func (c *Client) List() (*warden.ListResponse, error) {
+func (c *client) List() (*warden.ListResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.List()
 }
 
-func (c *Client) Info(handle string) (*warden.InfoResponse, error) {
+func (c *client) Info(handle string) (*warden.InfoResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.Info(handle)
 }
 
-func (c *Client) CopyIn(handle, src, dst string) (*warden.CopyInResponse, error) {
+func (c *client) CopyIn(handle, src, dst string) (*warden.CopyInResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.CopyIn(handle, src, dst)
 }
 
-func (c *Client) Stream(handle string, jobID uint32) (chan *warden.StreamResponse, error) {
+func (c *client) Stream(handle string, jobID uint32) (<-chan *warden.StreamResponse, error) {
 	conn := c.acquireConnection()
 
 	responses, done, err := conn.Stream(handle, jobID)
@@ -138,14 +158,14 @@ func (c *Client) Stream(handle string, jobID uint32) (chan *warden.StreamRespons
 	return responses, nil
 }
 
-func (c *Client) Run(handle, script string) (*warden.RunResponse, error) {
+func (c *client) Run(handle, script string) (*warden.RunResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
 	return conn.Run(handle, script)
 }
 
-func (c *Client) serveConnection(conn *connection.Connection) {
+func (c *client) serveConnection(conn *connection.Connection) {
 	select {
 	case <-conn.Disconnected:
 
@@ -156,11 +176,11 @@ func (c *Client) serveConnection(conn *connection.Connection) {
 	}
 }
 
-func (c *Client) release(conn *connection.Connection) {
+func (c *client) release(conn *connection.Connection) {
 	go c.serveConnection(conn)
 }
 
-func (c *Client) acquireConnection() *connection.Connection {
+func (c *client) acquireConnection() *connection.Connection {
 	select {
 	case conn := <-c.connection:
 		return conn
@@ -170,7 +190,7 @@ func (c *Client) acquireConnection() *connection.Connection {
 	}
 }
 
-func (c *Client) connect() *connection.Connection {
+func (c *client) connect() *connection.Connection {
 	for {
 		conn, err := c.connectionProvider.ProvideConnection()
 		if err == nil {
