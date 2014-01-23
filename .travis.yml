@@ -1,13 +1,10 @@
 language: go
 go:
-  - 1.1
-  - tip
-
-matrix:
-  allow_failures:
-    - go: tip
+  - 1.2
 
 install:
-  - go get -v launchpad.net/gocheck
-  - go get -v ./...
+  - go get -v -t ./...
   - go build -v ./...
+  - go install github.com/onsi/ginkgo/ginkgo
+
+script: $HOME/gopath/bin/ginkgo -r --randomizeAllSpecs --failOnPending

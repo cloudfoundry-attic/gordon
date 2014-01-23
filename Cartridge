@@ -2,4 +2,5 @@
 code.google.com/p/gogoprotobuf origin/master
 
 # Tests
-launchpad.net/gocheck last:1
+github.com/onsi/ginkgo origin/master
+github.com/onsi/gomega origin/master
