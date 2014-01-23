@@ -5,60 +5,78 @@ import (
 	"errors"
 	"runtime"
 
-	"code.google.com/p/gogoprotobuf/proto"
-	. "launchpad.net/gocheck"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/vito/gordon"
 
-	"github.com/vito/gordon"
-	"github.com/vito/gordon/connection"
-	. "github.com/vito/gordon/test_helpers"
+	"code.google.com/p/gogoprotobuf/proto"
 	"github.com/vito/gordon/warden"
 )
 
-func (w *WSuite) TestClientConnectWithFailingProvider(c *C) {
-	client := gordon.NewClient(&FailingConnectionProvider{})
-	err := client.Connect()
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "nope!")
-}
-
-func (w *WSuite) TestClientConnectWithSuccessfulProvider(c *C) {
-	client := gordon.NewClient(NewFakeConnectionProvider(new(bytes.Buffer), new(bytes.Buffer)))
-	err := client.Connect()
-	c.Assert(err, IsNil)
-}
-
-func (w *WSuite) TestClientContainerLifecycle(c *C) {
-	writeBuffer := new(bytes.Buffer)
-
-	fcp := NewFakeConnectionProvider(
-		warden.Messages(
-			&warden.CreateResponse{Handle: proto.String("foo")},
-			&warden.StopResponse{},
-			&warden.DestroyResponse{},
-		),
-		writeBuffer,
+var _ = Describe("Client", func() {
+	var (
+		client      Client
+		writeBuffer *bytes.Buffer
+		provider    *FakeConnectionProvider
 	)
 
-	client := gordon.NewClient(fcp)
+	BeforeEach(func() {
+		writeBuffer = new(bytes.Buffer)
 
-	err := client.Connect()
-	c.Assert(err, IsNil)
+	})
 
-	res, err := client.Create()
-	c.Assert(err, IsNil)
-	c.Assert(res.GetHandle(), Equals, "foo")
+	Describe("Connect", func() {
+		Context("with a successful provider", func() {
+			BeforeEach(func() {
+				client = NewClient(NewFakeConnectionProvider(new(bytes.Buffer), new(bytes.Buffer)))
+			})
 
-	_, err = client.Stop("foo", true, true)
-	c.Assert(err, IsNil)
+			It("should connect", func() {
+				err := client.Connect()
+				Ω(err).ShouldNot(HaveOccurred())
+			})
+		})
 
-	_, err = client.Destroy("foo")
-	c.Assert(err, IsNil)
+		Context("with a failing provider", func() {
+			BeforeEach(func() {
+				client = NewClient(&FailingConnectionProvider{})
+			})
 
-	c.Assert(
-		string(writeBuffer.Bytes()),
-		Equals,
-		string(
-			warden.Messages(
+			It("should fail to connect", func() {
+				err := client.Connect()
+				Ω(err).Should(Equal(errors.New("nope!")))
+			})
+		})
+	})
+
+	Describe("The container lifecycle", func() {
+		BeforeEach(func() {
+			provider = NewFakeConnectionProvider(
+				warden.Messages(
+					&warden.CreateResponse{Handle: proto.String("foo")},
+					&warden.StopResponse{},
+					&warden.DestroyResponse{},
+				),
+				writeBuffer,
+			)
+
+			client = NewClient(provider)
+			err := client.Connect()
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		It("should be able to create, stop and destroy a container", func() {
+			res, err := client.Create()
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(res.GetHandle()).Should(Equal("foo"))
+
+			_, err = client.Stop("foo", true, true)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			_, err = client.Destroy("foo")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			expectedWriteBufferContents := string(warden.Messages(
 				&warden.CreateRequest{},
 				&warden.StopRequest{
 					Handle:     proto.String("foo"),
@@ -66,271 +84,234 @@ func (w *WSuite) TestClientContainerLifecycle(c *C) {
 					Kill:       proto.Bool(true),
 				},
 				&warden.DestroyRequest{Handle: proto.String("foo")},
-			).Bytes(),
-		),
-	)
-}
+			).Bytes())
 
-func (w *WSuite) TestClientSpawnAndStreaming(c *C) {
-	writeBuf := new(bytes.Buffer)
+			Ω(string(writeBuffer.Bytes())).Should(Equal(expectedWriteBufferContents))
+		})
+	})
 
-	client := gordon.NewClient(NewFakeConnectionProvider(
-		warden.Messages(
-			&warden.SpawnResponse{
-				JobId: proto.Uint32(42),
-			},
-			&warden.StreamResponse{
-				Name: proto.String("stdout"),
-				Data: proto.String("some data for stdout"),
-			},
-		),
-		writeBuf,
-	))
+	Describe("Spawning and streaming", func() {
+		BeforeEach(func() {
+			provider = NewFakeConnectionProvider(
+				warden.Messages(
+					&warden.SpawnResponse{
+						JobId: proto.Uint32(42),
+					},
+					&warden.StreamResponse{
+						Name: proto.String("stdout"),
+						Data: proto.String("some data for stdout"),
+					},
+				),
+				writeBuffer,
+			)
 
-	err := client.Connect()
-	c.Assert(err, IsNil)
+			client = NewClient(provider)
+			err := client.Connect()
+			Ω(err).ShouldNot(HaveOccurred())
+		})
 
-	spawned, err := client.Spawn("foo", "echo some data for stdout", true)
-	c.Assert(err, IsNil)
+		It("should spawn and stream succesfully", func(done Done) {
+			spawned, err := client.Spawn("foo", "echo some data for stdout", true)
+			Ω(err).ShouldNot(HaveOccurred())
 
-	responses, err := client.Stream("foo", spawned.GetJobId())
-	c.Assert(err, IsNil)
+			responses, err := client.Stream("foo", spawned.GetJobId())
+			Ω(err).ShouldNot(HaveOccurred())
 
-	c.Assert(
-		string(writeBuf.Bytes()),
-		Equals,
-		string(
-			warden.Messages(
+			expectedWriteBufferContents := string(warden.Messages(
 				&warden.SpawnRequest{
 					Handle:        proto.String("foo"),
 					Script:        proto.String("echo some data for stdout"),
 					DiscardOutput: proto.Bool(true),
 				},
 				&warden.StreamRequest{Handle: proto.String("foo"), JobId: proto.Uint32(42)},
-			).Bytes(),
-		),
-	)
+			).Bytes())
 
-	res := <-responses
-	c.Assert(res.GetName(), Equals, "stdout")
-	c.Assert(res.GetData(), Equals, "some data for stdout")
-}
+			Ω(string(writeBuffer.Bytes())).Should(Equal(expectedWriteBufferContents))
 
-func (w *WSuite) TestClientSpawnAndLinking(c *C) {
-	writeBuf := new(bytes.Buffer)
+			res := <-responses
+			Ω(res.GetName()).Should(Equal("stdout"))
+			Ω(res.GetData()).Should(Equal("some data for stdout"))
 
-	client := gordon.NewClient(NewFakeConnectionProvider(
-		warden.Messages(
-			&warden.SpawnResponse{
-				JobId: proto.Uint32(42),
-			},
-			&warden.LinkResponse{
-				Stdout:     proto.String("some data for stdout"),
-				Stderr:     proto.String("some data for stderr"),
-				ExitStatus: proto.Uint32(137),
-			},
-		),
-		writeBuf,
-	))
+			close(done)
+		})
+	})
 
-	err := client.Connect()
-	c.Assert(err, IsNil)
+	Describe("Spawning and linking", func() {
+		BeforeEach(func() {
+			provider = NewFakeConnectionProvider(
+				warden.Messages(
+					&warden.SpawnResponse{
+						JobId: proto.Uint32(42),
+					},
+					&warden.LinkResponse{
+						Stdout:     proto.String("some data for stdout"),
+						Stderr:     proto.String("some data for stderr"),
+						ExitStatus: proto.Uint32(137),
+					},
+				),
+				writeBuffer,
+			)
 
-	spawned, err := client.Spawn("foo", "echo some data for stdout", true)
-	c.Assert(err, IsNil)
+			client = NewClient(provider)
+			err := client.Connect()
+			Ω(err).ShouldNot(HaveOccurred())
+		})
 
-	res, err := client.Link("foo", spawned.GetJobId())
-	c.Assert(err, IsNil)
+		It("should spawn and link succesfully", func() {
+			spawned, err := client.Spawn("foo", "echo some data for stdout", true)
+			Ω(err).ShouldNot(HaveOccurred())
 
-	c.Assert(
-		string(writeBuf.Bytes()),
-		Equals,
-		string(
-			warden.Messages(
+			res, err := client.Link("foo", spawned.GetJobId())
+			Ω(err).ShouldNot(HaveOccurred())
+
+			expectedWriteBufferContents := string(warden.Messages(
 				&warden.SpawnRequest{
 					Handle:        proto.String("foo"),
 					Script:        proto.String("echo some data for stdout"),
 					DiscardOutput: proto.Bool(true),
 				},
 				&warden.LinkRequest{Handle: proto.String("foo"), JobId: proto.Uint32(42)},
-			).Bytes(),
-		),
-	)
+			).Bytes())
 
-	c.Assert(res.GetStdout(), Equals, "some data for stdout")
-	c.Assert(res.GetStderr(), Equals, "some data for stderr")
-	c.Assert(res.GetExitStatus(), Equals, uint32(137))
-}
+			Ω(string(writeBuffer.Bytes())).Should(Equal(expectedWriteBufferContents))
 
-func (w *WSuite) TestClientContainerInfo(c *C) {
-	writeBuffer := new(bytes.Buffer)
+			Ω(res.GetStdout()).Should(Equal("some data for stdout"))
+			Ω(res.GetStderr()).Should(Equal("some data for stderr"))
+			Ω(res.GetExitStatus()).Should(Equal(uint32(137)))
+		})
+	})
 
-	fcp := NewFakeConnectionProvider(
-		warden.Messages(
-			&warden.InfoResponse{
-				State: proto.String("stopped"),
-			},
-		),
-		writeBuffer,
-	)
+	Describe("Querying containers", func() {
+		Describe("Listing containers", func() {
+			BeforeEach(func() {
+				provider = NewFakeConnectionProvider(
+					warden.Messages(
+						&warden.ListResponse{
+							Handles: []string{"container1", "container6"},
+						},
+					),
+					writeBuffer,
+				)
 
-	client := gordon.NewClient(fcp)
+				client = NewClient(provider)
+				err := client.Connect()
+				Ω(err).ShouldNot(HaveOccurred())
+			})
 
-	err := client.Connect()
-	c.Assert(err, IsNil)
+			It("should list the containers", func() {
+				res, err := client.List()
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(res.GetHandles()).Should(Equal([]string{"container1", "container6"}))
 
-	res, err := client.Info("handle")
-	c.Assert(err, IsNil)
-	c.Assert(res.GetState(), Equals, "stopped")
+				expectedWriteBufferContents := string(warden.Messages(
+					&warden.ListRequest{},
+				).Bytes())
 
-	c.Assert(
-		string(writeBuffer.Bytes()),
-		Equals,
-		string(
-			warden.Messages(
-				&warden.InfoRequest{
-					Handle: proto.String("handle"),
-				},
-			).Bytes(),
-		),
-	)
-}
+				Ω(string(writeBuffer.Bytes())).Should(Equal(expectedWriteBufferContents))
+			})
+		})
 
-func (w *WSuite) TestClientContainerList(c *C) {
-	writeBuffer := new(bytes.Buffer)
+		Describe("Getting info for a specific container", func() {
+			BeforeEach(func() {
+				provider = NewFakeConnectionProvider(
+					warden.Messages(
+						&warden.InfoResponse{
+							State: proto.String("stopped"),
+						},
+					),
+					writeBuffer,
+				)
 
-	fcp := NewFakeConnectionProvider(
-		warden.Messages(
-			&warden.ListResponse{
-				Handles: []string{"container1", "container6"},
-			},
-		),
-		writeBuffer,
-	)
+				client = NewClient(provider)
+				err := client.Connect()
+				Ω(err).ShouldNot(HaveOccurred())
+			})
 
-	client := gordon.NewClient(fcp)
+			It("should return info for the requested handle", func() {
+				res, err := client.Info("handle")
 
-	err := client.Connect()
-	c.Assert(err, IsNil)
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(res.GetState()).Should(Equal("stopped"))
 
-	res, err := client.List()
-	c.Assert(err, IsNil)
-	c.Assert(res.GetHandles(), DeepEquals, []string{"container1", "container6"})
+				expectedWriteBufferContents := string(warden.Messages(
+					&warden.InfoRequest{
+						Handle: proto.String("handle"),
+					},
+				).Bytes())
 
-	c.Assert(
-		string(writeBuffer.Bytes()),
-		Equals,
-		string(
-			warden.Messages(
-				&warden.ListRequest{},
-			).Bytes(),
-		),
-	)
-}
+				Ω(string(writeBuffer.Bytes())).Should(Equal(expectedWriteBufferContents))
+			})
+		})
 
-func (w *WSuite) TestClientReconnects(c *C) {
-	firstWriteBuf := bytes.NewBuffer([]byte{})
-	secondWriteBuf := bytes.NewBuffer([]byte{})
+		Describe("Reconnecting", func() {
+			var (
+				firstWriteBuffer  *bytes.Buffer
+				secondWriteBuffer *bytes.Buffer
+			)
 
-	mcp := &ManyConnectionProvider{
-		ConnectionProviders: []gordon.ConnectionProvider{
-			NewFakeConnectionProvider(
-				warden.Messages(
-					&warden.CreateResponse{Handle: proto.String("handle a")},
-					// disconnect
-				),
-				firstWriteBuf,
-			),
-			NewFakeConnectionProvider(
-				warden.Messages(
-					&warden.CreateResponse{Handle: proto.String("handle b")},
-					&warden.DestroyResponse{},
-					&warden.DestroyResponse{},
-				),
-				secondWriteBuf,
-			),
-		},
-	}
+			BeforeEach(func() {
+				firstWriteBuffer = bytes.NewBuffer([]byte{})
+				secondWriteBuffer = bytes.NewBuffer([]byte{})
 
-	client := gordon.NewClient(mcp)
+				mcp := &ManyConnectionProvider{
+					ConnectionProviders: []ConnectionProvider{
+						NewFakeConnectionProvider(
+							warden.Messages(
+								&warden.CreateResponse{Handle: proto.String("handle a")},
+								// disconnect
+							),
+							firstWriteBuffer,
+						),
+						NewFakeConnectionProvider(
+							warden.Messages(
+								&warden.CreateResponse{Handle: proto.String("handle b")},
+								&warden.DestroyResponse{},
+								&warden.DestroyResponse{},
+							),
+							secondWriteBuffer,
+						),
+					},
+				}
 
-	err := client.Connect()
-	c.Assert(err, IsNil)
+				client = NewClient(mcp)
+				err := client.Connect()
+				Ω(err).ShouldNot(HaveOccurred())
+			})
 
-	c1, err := client.Create()
-	c.Assert(err, IsNil)
+			It("should attempt to reconnect when a disconnect occurs", func() {
+				c1, err := client.Create()
+				Ω(err).ShouldNot(HaveOccurred())
 
-	// let client notice disconnect
-	runtime.Gosched()
+				// let client notice disconnect
+				runtime.Gosched()
 
-	c2, err := client.Create()
-	c.Assert(err, IsNil)
+				c2, err := client.Create()
+				Ω(err).ShouldNot(HaveOccurred())
 
-	_, err = client.Destroy(c1.GetHandle())
-	c.Assert(err, IsNil)
+				_, err = client.Destroy(c1.GetHandle())
+				Ω(err).ShouldNot(HaveOccurred())
 
-	_, err = client.Destroy(c2.GetHandle())
-	c.Assert(err, IsNil)
+				_, err = client.Destroy(c2.GetHandle())
+				Ω(err).ShouldNot(HaveOccurred())
 
-	c.Assert(
-		string(firstWriteBuf.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.CreateRequest{}).Bytes()),
-	)
+				expectedWriteBufferContents := string(warden.Messages(
+					&warden.CreateRequest{},
+				).Bytes())
 
-	c.Assert(
-		string(secondWriteBuf.Bytes()),
-		Equals,
-		string(
-			warden.Messages(
-				&warden.CreateRequest{},
-				&warden.DestroyRequest{
-					Handle: proto.String("handle a"),
-				},
-				&warden.DestroyRequest{
-					Handle: proto.String("handle b"),
-				},
-			).Bytes(),
-		),
-	)
-}
+				Ω(string(firstWriteBuffer.Bytes())).Should(Equal(expectedWriteBufferContents))
 
-type FailingConnectionProvider struct{}
+				expectedWriteBufferContents = string(warden.Messages(
+					&warden.CreateRequest{},
+					&warden.DestroyRequest{
+						Handle: proto.String("handle a"),
+					},
+					&warden.DestroyRequest{
+						Handle: proto.String("handle b"),
+					},
+				).Bytes())
 
-func (c *FailingConnectionProvider) ProvideConnection() (*connection.Connection, error) {
-	return nil, errors.New("nope!")
-}
-
-type FakeConnectionProvider struct {
-	connection *connection.Connection
-}
-
-func NewFakeConnectionProvider(readBuffer, writeBuffer *bytes.Buffer) *FakeConnectionProvider {
-	return &FakeConnectionProvider{
-		connection: connection.New(
-			&FakeConn{
-				ReadBuffer:  readBuffer,
-				WriteBuffer: writeBuffer,
-			},
-		),
-	}
-}
-
-func (c *FakeConnectionProvider) ProvideConnection() (*connection.Connection, error) {
-	return c.connection, nil
-}
-
-type ManyConnectionProvider struct {
-	ConnectionProviders []gordon.ConnectionProvider
-}
-
-func (c *ManyConnectionProvider) ProvideConnection() (*connection.Connection, error) {
-	if len(c.ConnectionProviders) == 0 {
-		return nil, errors.New("no more connections")
-	}
-
-	cp := c.ConnectionProviders[0]
-	c.ConnectionProviders = c.ConnectionProviders[1:]
-
-	return cp.ProvideConnection()
-}
+				Ω(string(secondWriteBuffer.Bytes())).Should(Equal(expectedWriteBufferContents))
+			})
+		})
+	})
+})
