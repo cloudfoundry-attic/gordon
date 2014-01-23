@@ -2,513 +2,453 @@ package connection_test
 
 import (
 	"bytes"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/vito/gordon/connection"
 	"math"
-	"time"
 
 	"code.google.com/p/gogoprotobuf/proto"
-	. "launchpad.net/gocheck"
-
-	"github.com/vito/gordon/connection"
 	. "github.com/vito/gordon/test_helpers"
 	"github.com/vito/gordon/warden"
 )
 
-func (w *WSuite) TestConnectionCreating(c *C) {
-	conn := &FakeConn{
-		ReadBuffer: warden.Messages(&warden.CreateResponse{
-			Handle: proto.String("foohandle"),
-		}),
-
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
-
-	connection := connection.New(conn)
-
-	resp, err := connection.Create()
-	c.Assert(err, IsNil)
-
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.CreateRequest{}).Bytes()),
+var _ = Describe("Connection", func() {
+	var (
+		connection     *Connection
+		writeBuffer    *bytes.Buffer
+		wardenMessages []proto.Message
 	)
 
-	c.Assert(resp.GetHandle(), Equals, "foohandle")
-}
-
-func (w *WSuite) TestConnectionStopping(c *C) {
-	conn := &FakeConn{
-		ReadBuffer:  warden.Messages(&warden.StopResponse{}),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
+	assertWriteBufferContains := func(messages ...proto.Message) {
+		Ω(string(writeBuffer.Bytes())).Should(Equal(string(warden.Messages(messages...).Bytes())))
 	}
 
-	connection := connection.New(conn)
+	JustBeforeEach(func() {
+		writeBuffer = bytes.NewBuffer([]byte{})
 
-	_, err := connection.Stop("foo", true, true)
-	c.Assert(err, IsNil)
+		fakeConn := &FakeConn{
+			ReadBuffer:  warden.Messages(wardenMessages...),
+			WriteBuffer: writeBuffer,
+		}
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.StopRequest{
-			Handle:     proto.String("foo"),
-			Background: proto.Bool(true),
-			Kill:       proto.Bool(true),
-		}).Bytes()),
-	)
-}
+		connection = New(fakeConn)
+	})
 
-func (w *WSuite) TestConnectionDestroying(c *C) {
-	conn := &FakeConn{
-		ReadBuffer:  warden.Messages(&warden.DestroyResponse{}),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+	BeforeEach(func() {
+		wardenMessages = []proto.Message{}
+	})
 
-	connection := connection.New(conn)
+	Describe("Creating", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.CreateResponse{
+					Handle: proto.String("foohandle"),
+				},
+			)
+		})
 
-	_, err := connection.Destroy("foo")
-	c.Assert(err, IsNil)
+		It("should create a container", func() {
+			resp, err := connection.Create()
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(resp.GetHandle()).Should(Equal("foohandle"))
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.DestroyRequest{Handle: proto.String("foo")}).Bytes()),
-	)
-}
+			assertWriteBufferContains(&warden.CreateRequest{})
+		})
+	})
 
-func (w *WSuite) TestMemoryLimiting(c *C) {
-	conn := &FakeConn{
-		ReadBuffer:  warden.Messages(&warden.LimitMemoryResponse{LimitInBytes: proto.Uint64(40)}),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+	Describe("Stopping", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.StopResponse{},
+			)
+		})
 
-	connection := connection.New(conn)
+		It("should stop the container", func() {
+			_, err := connection.Stop("foo", true, true)
+			Ω(err).ShouldNot(HaveOccurred())
 
-	res, err := connection.LimitMemory("foo", 42)
-	c.Assert(err, IsNil)
+			assertWriteBufferContains(&warden.StopRequest{
+				Handle:     proto.String("foo"),
+				Background: proto.Bool(true),
+				Kill:       proto.Bool(true),
+			})
+		})
+	})
 
-	c.Assert(res.GetLimitInBytes(), Equals, uint64(40))
+	Describe("Destroying", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.DestroyResponse{},
+			)
+		})
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(
-			warden.Messages(
-				&warden.LimitMemoryRequest{
+		It("should stop the container", func() {
+			_, err := connection.Destroy("foo")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			assertWriteBufferContains(&warden.DestroyRequest{
+				Handle: proto.String("foo"),
+			})
+		})
+	})
+
+	Describe("Limiting Memory", func() {
+		Describe("Setting the memory limit", func() {
+			BeforeEach(func() {
+				wardenMessages = append(wardenMessages,
+					&warden.LimitMemoryResponse{LimitInBytes: proto.Uint64(40)},
+				)
+			})
+
+			It("should limit memory", func() {
+				res, err := connection.LimitMemory("foo", 42)
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(res.GetLimitInBytes()).Should(BeNumerically("==", 40))
+
+				assertWriteBufferContains(&warden.LimitMemoryRequest{
 					Handle:       proto.String("foo"),
 					LimitInBytes: proto.Uint64(42),
-				},
-			).Bytes(),
-		),
-	)
-}
+				})
+			})
+		})
 
-func (w *WSuite) TestGettingMemoryLimit(c *C) {
-	conn := &FakeConn{
-		ReadBuffer:  warden.Messages(&warden.LimitMemoryResponse{LimitInBytes: proto.Uint64(40)}),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+		Describe("Getting the memory limit", func() {
+			Context("when the memory limit is well formatted", func() {
+				BeforeEach(func() {
+					wardenMessages = append(wardenMessages,
+						&warden.LimitMemoryResponse{LimitInBytes: proto.Uint64(40)},
+					)
+				})
 
-	connection := connection.New(conn)
+				It("should return the correct memory format", func() {
+					memoryLimit, err := connection.GetMemoryLimit("foo")
+					Ω(err).ShouldNot(HaveOccurred())
+					Ω(memoryLimit).Should(BeNumerically("==", 40))
 
-	memoryLimit, err := connection.GetMemoryLimit("foo")
-	c.Assert(err, IsNil)
-	c.Assert(memoryLimit, Equals, uint64(40))
+					assertWriteBufferContains(&warden.LimitMemoryRequest{
+						Handle: proto.String("foo"),
+					})
+				})
+			})
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(
-			warden.Messages(
-				&warden.LimitMemoryRequest{
-					Handle: proto.String("foo"),
-				},
-			).Bytes(),
-		),
-	)
-}
+			Context("When the memory limit looks fishy", func() {
+				BeforeEach(func() {
+					wardenMessages = append(wardenMessages,
+						&warden.LimitMemoryResponse{LimitInBytes: proto.Uint64(math.MaxInt64)},
+					)
+				})
 
-func (w *WSuite) TestGettingMemoryLimitThatLooksFishy(c *C) {
-	conn := &FakeConn{
-		ReadBuffer:  warden.Messages(&warden.LimitMemoryResponse{LimitInBytes: proto.Uint64(math.MaxInt64)}),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+				It("should return 0, without erroring", func() {
+					memoryLimit, err := connection.GetMemoryLimit("foo")
+					Ω(err).ShouldNot(HaveOccurred())
+					Ω(memoryLimit).Should(BeNumerically("==", 0))
 
-	connection := connection.New(conn)
+					assertWriteBufferContains(&warden.LimitMemoryRequest{
+						Handle: proto.String("foo"),
+					})
+				})
+			})
+		})
+	})
 
-	memoryLimit, err := connection.GetMemoryLimit("foo")
-	c.Assert(err, IsNil)
-	c.Assert(memoryLimit, Equals, uint64(0))
+	Describe("Limiting Disk", func() {
+		Describe("Setting the disk limit", func() {
+			BeforeEach(func() {
+				wardenMessages = append(wardenMessages,
+					&warden.LimitDiskResponse{ByteLimit: proto.Uint64(40)},
+				)
+			})
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(
-			warden.Messages(
-				&warden.LimitMemoryRequest{
-					Handle: proto.String("foo"),
-				},
-			).Bytes(),
-		),
-	)
-}
+			It("should limit disk", func() {
+				res, err := connection.LimitDisk("foo", 42)
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(res.GetByteLimit()).Should(BeNumerically("==", 40))
 
-func (w *WSuite) TestDiskLimiting(c *C) {
-	conn := &FakeConn{
-		ReadBuffer:  warden.Messages(&warden.LimitDiskResponse{ByteLimit: proto.Uint64(40)}),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
-
-	connection := connection.New(conn)
-
-	res, err := connection.LimitDisk("foo", 42)
-	c.Assert(err, IsNil)
-
-	c.Assert(res.GetByteLimit(), Equals, uint64(40))
-
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(
-			warden.Messages(
-				&warden.LimitDiskRequest{
+				assertWriteBufferContains(&warden.LimitDiskRequest{
 					Handle:    proto.String("foo"),
 					ByteLimit: proto.Uint64(42),
-				},
-			).Bytes(),
-		),
-	)
-}
+				})
+			})
+		})
 
-func (w *WSuite) TestGettingDiskLimit(c *C) {
-	conn := &FakeConn{
-		ReadBuffer:  warden.Messages(&warden.LimitDiskResponse{ByteLimit: proto.Uint64(40)}),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+		Describe("Getting the disk limit", func() {
+			BeforeEach(func() {
+				wardenMessages = append(wardenMessages,
+					&warden.LimitDiskResponse{ByteLimit: proto.Uint64(40)},
+				)
+			})
 
-	connection := connection.New(conn)
+			It("should return the correct memory format", func() {
+				diskLimit, err := connection.GetDiskLimit("foo")
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(diskLimit).Should(BeNumerically("==", 40))
 
-	diskLimit, err := connection.GetDiskLimit("foo")
-	c.Assert(err, IsNil)
-	c.Assert(diskLimit, Equals, uint64(40))
-
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(
-			warden.Messages(
-				&warden.LimitDiskRequest{
+				assertWriteBufferContains(&warden.LimitDiskRequest{
 					Handle: proto.String("foo"),
+				})
+			})
+		})
+	})
+
+	Describe("Spawning", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.SpawnResponse{JobId: proto.Uint32(42)},
+				&warden.SpawnResponse{JobId: proto.Uint32(43)},
+			)
+		})
+
+		It("should be able to spawn multiple jobs sequentially", func() {
+			resp, err := connection.Spawn("foo-handle", "echo hi", true)
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(resp.GetJobId()).Should(BeNumerically("==", 42))
+
+			assertWriteBufferContains(&warden.SpawnRequest{
+				Handle:        proto.String("foo-handle"),
+				Script:        proto.String("echo hi"),
+				DiscardOutput: proto.Bool(true),
+			})
+
+			writeBuffer.Reset()
+
+			resp, err = connection.Spawn("foo-handle", "echo bye", false)
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(resp.GetJobId()).Should(BeNumerically("==", 43))
+
+			assertWriteBufferContains(&warden.SpawnRequest{
+				Handle:        proto.String("foo-handle"),
+				Script:        proto.String("echo bye"),
+				DiscardOutput: proto.Bool(false),
+			})
+		})
+	})
+
+	Describe("NetIn", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.NetInResponse{
+					HostPort:      proto.Uint32(7331),
+					ContainerPort: proto.Uint32(7332),
 				},
-			).Bytes(),
-		),
-	)
-}
+			)
+		})
 
-func (w *WSuite) TestConnectionSpawn(c *C) {
-	conn := &FakeConn{
-		ReadBuffer: warden.Messages(
-			&warden.SpawnResponse{JobId: proto.Uint32(42)},
-			&warden.SpawnResponse{JobId: proto.Uint32(43)},
-		),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+		It("should return the allocated ports", func() {
+			resp, err := connection.NetIn("foo-handle")
+			Ω(err).ShouldNot(HaveOccurred())
 
-	connection := connection.New(conn)
+			Ω(resp.GetHostPort()).Should(BeNumerically("==", 7331))
+			Ω(resp.GetContainerPort()).Should(BeNumerically("==", 7332))
 
-	resp, err := connection.Spawn("foo-handle", "echo hi", true)
-	c.Assert(err, IsNil)
+			assertWriteBufferContains(&warden.NetInRequest{
+				Handle: proto.String("foo-handle"),
+			})
+		})
+	})
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.SpawnRequest{
-			Handle:        proto.String("foo-handle"),
-			Script:        proto.String("echo hi"),
-			DiscardOutput: proto.Bool(true),
-		}).Bytes()),
-	)
+	Describe("Listing containers", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.ListResponse{
+					Handles: []string{"container1", "container2", "container3"},
+				},
+			)
+		})
 
-	c.Assert(resp.GetJobId(), Equals, uint32(42))
+		It("should return the list of containers", func() {
+			resp, err := connection.List()
+			Ω(err).ShouldNot(HaveOccurred())
 
-	conn.WriteBuffer.Reset()
+			Ω(resp.GetHandles()).Should(Equal([]string{"container1", "container2", "container3"}))
 
-	resp, err = connection.Spawn("foo-handle", "echo hi", false)
-	c.Assert(err, IsNil)
+			assertWriteBufferContains(&warden.ListRequest{})
+		})
+	})
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.SpawnRequest{
-			Handle:        proto.String("foo-handle"),
-			Script:        proto.String("echo hi"),
-			DiscardOutput: proto.Bool(false),
-		}).Bytes()),
-	)
-}
+	Describe("Getting container info", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.InfoResponse{
+					State: proto.String("active"),
+				},
+			)
+		})
 
-func (w *WSuite) TestConnectionNetIn(c *C) {
-	conn := &FakeConn{
-		ReadBuffer: warden.Messages(
-			&warden.NetInResponse{
-				HostPort:      proto.Uint32(7331),
-				ContainerPort: proto.Uint32(7331),
-			},
-		),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+		It("should return the container's info", func() {
+			resp, err := connection.Info("handle")
+			Ω(err).ShouldNot(HaveOccurred())
 
-	connection := connection.New(conn)
+			Ω(resp.GetState()).Should(Equal("active"))
 
-	resp, err := connection.NetIn("foo-handle")
-	c.Assert(err, IsNil)
+			assertWriteBufferContains(&warden.InfoRequest{
+				Handle: proto.String("handle"),
+			})
+		})
+	})
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.NetInRequest{
-			Handle: proto.String("foo-handle"),
-		}).Bytes()),
-	)
+	Describe("Copying in", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.CopyInResponse{},
+			)
+		})
 
-	c.Assert(resp.GetHostPort(), Equals, uint32(7331))
-	c.Assert(resp.GetContainerPort(), Equals, uint32(7331))
-}
+		It("should tell garden to copy", func() {
+			_, err := connection.CopyIn("foo-handle", "/foo", "/bar")
+			Ω(err).ShouldNot(HaveOccurred())
 
-func (w *WSuite) TestConnectionList(c *C) {
-	conn := &FakeConn{
-		ReadBuffer: warden.Messages(
-			&warden.ListResponse{
-				Handles: []string{"container1", "container2", "container3"},
-			},
-		),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+			assertWriteBufferContains(&warden.CopyInRequest{
+				Handle:  proto.String("foo-handle"),
+				SrcPath: proto.String("/foo"),
+				DstPath: proto.String("/bar"),
+			})
+		})
+	})
 
-	connection := connection.New(conn)
+	Describe("Linking", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.LinkResponse{
+					Stdout:     proto.String("some data for stdout"),
+					Stderr:     proto.String("some data for stderr"),
+					ExitStatus: proto.Uint32(137),
+				},
+			)
+		})
 
-	resp, err := connection.List()
-	c.Assert(err, IsNil)
+		It("should link ot the process", func() {
+			resp, err := connection.Link("foo-handle", 42)
+			Ω(err).ShouldNot(HaveOccurred())
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.ListRequest{}).Bytes()),
-	)
+			Ω(resp.GetExitStatus()).Should(BeNumerically("==", 137))
+			Ω(resp.GetStdout()).Should(Equal("some data for stdout"))
+			Ω(resp.GetStderr()).Should(Equal("some data for stderr"))
 
-	c.Assert(resp.GetHandles(), DeepEquals, []string{"container1", "container2", "container3"})
-}
+			assertWriteBufferContains(&warden.LinkRequest{
+				Handle: proto.String("foo-handle"),
+				JobId:  proto.Uint32(42),
+			})
+		})
+	})
 
-func (w *WSuite) TestConnectionInfo(c *C) {
-	conn := &FakeConn{
-		ReadBuffer: warden.Messages(
-			&warden.InfoResponse{
-				State: proto.String("active"),
-			},
-		),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+	Describe("Running", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.RunResponse{ExitStatus: proto.Uint32(137)},
+			)
+		})
 
-	connection := connection.New(conn)
+		It("should start the process running", func() {
+			resp, err := connection.Run("foo-handle", "echo hi")
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(resp.GetExitStatus()).Should(BeNumerically("==", 137))
 
-	resp, err := connection.Info("handle")
-	c.Assert(err, IsNil)
+			assertWriteBufferContains(&warden.RunRequest{
+				Handle: proto.String("foo-handle"),
+				Script: proto.String("echo hi"),
+			})
+		})
+	})
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.InfoRequest{
-			Handle: proto.String("handle"),
-		}).Bytes()),
-	)
+	Describe("When a connection error occurs", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.DestroyResponse{},
+				//EOF
+			)
+		})
 
-	c.Assert(resp.GetState(), Equals, "active")
-}
+		It("should disconnect", func(done Done) {
+			resp, err := connection.Destroy("foo-handle")
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(resp).ShouldNot(BeNil())
 
-func (w *WSuite) TestConnectionCopyIn(c *C) {
-	conn := &FakeConn{
-		ReadBuffer:  warden.Messages(&warden.CopyInResponse{}),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+			<-connection.Disconnected
+			close(done)
+		})
+	})
 
-	connection := connection.New(conn)
+	Describe("Disconnecting", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.ErrorResponse{Message: proto.String("boo")},
+			)
+		})
 
-	_, err := connection.CopyIn("foo-handle", "/foo", "/bar")
-	c.Assert(err, IsNil)
+		It("should error", func() {
+			resp, err := connection.Run("foo-handle", "echo hi")
+			Ω(resp).Should(BeNil())
+			Ω(err.Error()).Should(Equal("boo"))
+		})
+	})
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.CopyInRequest{
-			Handle:  proto.String("foo-handle"),
-			SrcPath: proto.String("/foo"),
-			DstPath: proto.String("/bar"),
-		}).Bytes()),
-	)
-}
+	Describe("Round tripping", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.RunResponse{ExitStatus: proto.Uint32(137)},
+			)
+		})
 
-func (w *WSuite) TestConnectionLink(c *C) {
-	conn := &FakeConn{
-		ReadBuffer: warden.Messages(&warden.LinkResponse{
-			Stdout:     proto.String("some data for stdout"),
-			Stderr:     proto.String("some data for stderr"),
-			ExitStatus: proto.Uint32(137),
-		}),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+		It("should do the round trip", func() {
+			resp, err := connection.RoundTrip(
+				&warden.RunRequest{
+					Handle: proto.String("some-handle"),
+					Script: proto.String("foo"),
+				},
+				&warden.RunResponse{},
+			)
 
-	connection := connection.New(conn)
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(resp.(*warden.RunResponse).GetExitStatus()).Should(BeNumerically("==", 137))
+		})
+	})
 
-	resp, err := connection.Link("foo-handle", 42)
-	c.Assert(err, IsNil)
+	Describe("Streaming", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.StreamResponse{Name: proto.String("stdout"), Data: proto.String("1")},
+				&warden.StreamResponse{Name: proto.String("stderr"), Data: proto.String("2")},
+				&warden.StreamResponse{ExitStatus: proto.Uint32(3)},
+			)
+		})
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.LinkRequest{
-			Handle: proto.String("foo-handle"),
-			JobId:  proto.Uint32(42),
-		}).Bytes()),
-	)
+		It("should stream", func(done Done) {
+			resp, finishedStreaming, err := connection.Stream("foo-handle", 42)
+			Ω(err).ShouldNot(HaveOccurred())
 
-	c.Assert(resp.GetExitStatus(), Equals, uint32(137))
-	c.Assert(resp.GetStdout(), Equals, "some data for stdout")
-	c.Assert(resp.GetStderr(), Equals, "some data for stderr")
-}
+			assertWriteBufferContains(&warden.StreamRequest{
+				Handle: proto.String("foo-handle"),
+				JobId:  proto.Uint32(42),
+			})
 
-func (w *WSuite) TestConnectionRun(c *C) {
-	conn := &FakeConn{
-		ReadBuffer:  warden.Messages(&warden.RunResponse{ExitStatus: proto.Uint32(137)}),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+			response1 := <-resp
+			Ω(response1.GetName()).Should(Equal("stdout"))
+			Ω(response1.GetData()).Should(Equal("1"))
 
-	connection := connection.New(conn)
+			select {
+			case <-finishedStreaming:
+				Fail("should not have finished streaming")
+			default:
+			}
 
-	resp, err := connection.Run("foo-handle", "echo hi")
-	c.Assert(err, IsNil)
+			response2 := <-resp
+			Ω(response2.GetName()).Should(Equal("stderr"))
+			Ω(response2.GetData()).Should(Equal("2"))
 
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.RunRequest{
-			Handle: proto.String("foo-handle"),
-			Script: proto.String("echo hi"),
-		}).Bytes()),
-	)
+			select {
+			case <-finishedStreaming:
+				Fail("should not have finished streaming")
+			default:
+			}
 
-	c.Assert(resp.GetExitStatus(), Equals, uint32(137))
-}
+			response3, ok := <-resp
+			Ω(response3.GetExitStatus()).Should(BeNumerically("==", 3))
+			Ω(ok).Should(BeTrue())
 
-func (w *WSuite) TestConnectionStream(c *C) {
-	conn := &FakeConn{
-		ReadBuffer: warden.Messages(
-			&warden.StreamResponse{Name: proto.String("stdout"), Data: proto.String("1")},
-			&warden.StreamResponse{Name: proto.String("stderr"), Data: proto.String("2")},
-			&warden.StreamResponse{ExitStatus: proto.Uint32(3)},
-		),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
+			_, ok = <-finishedStreaming
+			Ω(ok).Should(BeFalse())
 
-	connection := connection.New(conn)
-
-	resp, done, err := connection.Stream("foo-handle", 42)
-	c.Assert(err, IsNil)
-
-	c.Assert(
-		string(conn.WriteBuffer.Bytes()),
-		Equals,
-		string(warden.Messages(&warden.StreamRequest{
-			Handle: proto.String("foo-handle"),
-			JobId:  proto.Uint32(42),
-		}).Bytes()),
-	)
-
-	res1 := <-resp
-	c.Assert(res1.GetName(), Equals, "stdout")
-	c.Assert(res1.GetData(), Equals, "1")
-
-	select {
-	case <-done:
-		c.Error("done channel should not have been readable")
-	default:
-	}
-
-	res2 := <-resp
-	c.Assert(res2.GetName(), Equals, "stderr")
-	c.Assert(res2.GetData(), Equals, "2")
-
-	select {
-	case <-done:
-		c.Error("done channel should not have been readable")
-	default:
-	}
-
-	res3, ok := <-resp
-	c.Assert(res3.GetExitStatus(), Equals, uint32(3))
-	c.Assert(ok, Equals, true)
-
-	select {
-	case _, ok := <-done:
-		c.Assert(ok, Equals, false)
-	case <-time.After(1 * time.Second):
-		c.Error("done channel should have closed")
-	}
-}
-
-func (w *WSuite) TestConnectionError(c *C) {
-	conn := &FakeConn{
-		ReadBuffer: warden.Messages(
-			&warden.DestroyResponse{},
-			// EOF
-		),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
-
-	connection := connection.New(conn)
-
-	resp, err := connection.Destroy("foo-handle")
-	c.Assert(resp, Not(IsNil))
-	c.Assert(err, IsNil)
-
-	select {
-	case <-connection.Disconnected:
-	case <-time.After(1 * time.Second):
-		c.Error("should have disconnected due to EOF")
-	}
-}
-
-func (w *WSuite) TestConnectionDisconnects(c *C) {
-	conn := &FakeConn{
-		ReadBuffer:  warden.Messages(&warden.ErrorResponse{Message: proto.String("boo")}),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
-
-	connection := connection.New(conn)
-
-	resp, err := connection.Run("foo-handle", "echo hi")
-	c.Assert(resp, IsNil)
-	c.Assert(err, Not(IsNil))
-
-	c.Assert(err.Error(), Equals, "boo")
-}
-
-func (w *WSuite) TestConnectionRoundTrip(c *C) {
-	conn := &FakeConn{
-		ReadBuffer:  warden.Messages(&warden.RunResponse{ExitStatus: proto.Uint32(137)}),
-		WriteBuffer: bytes.NewBuffer([]byte{}),
-	}
-
-	connection := connection.New(conn)
-
-	resp, err := connection.RoundTrip(
-		&warden.RunRequest{
-			Handle: proto.String("some-handle"),
-			Script: proto.String("foo"),
-		},
-		&warden.RunResponse{},
-	)
-
-	c.Assert(err, IsNil)
-
-	c.Assert(resp.(*warden.RunResponse).GetExitStatus(), Equals, uint32(137))
-}
+			close(done)
+		})
+	})
+})
