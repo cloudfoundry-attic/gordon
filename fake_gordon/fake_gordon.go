@@ -4,18 +4,19 @@ import (
 	"code.google.com/p/gogoprotobuf/proto"
 	"github.com/nu7hatch/gouuid"
 	"github.com/vito/gordon/warden"
+	"sync"
 )
 
 type FakeGordon struct {
 	Connected    bool
 	ConnectError error
 
-	CreatedHandles []string
+	createdHandles []string
 	CreateError    error
 
 	StopError error
 
-	DestroyedHandles []string
+	destroyedHandles []string
 	DestroyError     error
 
 	SpawnError error
@@ -41,6 +42,8 @@ type FakeGordon struct {
 	StreamError error
 
 	RunError error
+
+	lock *sync.Mutex
 }
 
 func New() *FakeGordon {
@@ -50,15 +53,16 @@ func New() *FakeGordon {
 }
 
 func (f *FakeGordon) Reset() {
+	f.lock = &sync.Mutex{}
 	f.Connected = false
 	f.ConnectError = nil
 
-	f.CreatedHandles = []string{}
+	f.createdHandles = []string{}
 	f.CreateError = nil
 
 	f.StopError = nil
 
-	f.DestroyedHandles = []string{}
+	f.destroyedHandles = []string{}
 	f.DestroyError = nil
 
 	f.SpawnError = nil
@@ -76,11 +80,15 @@ func (f *FakeGordon) Reset() {
 }
 
 func (f *FakeGordon) Connect() error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
 	f.Connected = true
 	return f.ConnectError
 }
 
 func (f *FakeGordon) Create() (*warden.CreateResponse, error) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
 	if f.CreateError != nil {
 		return nil, f.CreateError
 	}
@@ -88,11 +96,18 @@ func (f *FakeGordon) Create() (*warden.CreateResponse, error) {
 	handleUuid, _ := uuid.NewV4()
 	handle := handleUuid.String()[:11]
 
-	f.CreatedHandles = append(f.CreatedHandles, handle)
+	f.createdHandles = append(f.createdHandles, handle)
 
 	return &warden.CreateResponse{
 		Handle: proto.String(handle),
 	}, nil
+}
+
+func (f *FakeGordon) CreatedHandles() []string {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	return f.createdHandles
 }
 
 func (f *FakeGordon) Stop(handle string, background, kill bool) (*warden.StopResponse, error) {
@@ -101,13 +116,22 @@ func (f *FakeGordon) Stop(handle string, background, kill bool) (*warden.StopRes
 }
 
 func (f *FakeGordon) Destroy(handle string) (*warden.DestroyResponse, error) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
 	if f.DestroyError != nil {
 		return nil, f.DestroyError
 	}
 
-	f.DestroyedHandles = append(f.DestroyedHandles, handle)
+	f.destroyedHandles = append(f.destroyedHandles, handle)
 
 	return &warden.DestroyResponse{}, nil
+}
+
+func (f *FakeGordon) DestroyedHandles() []string {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	return f.destroyedHandles
 }
 
 func (f *FakeGordon) Spawn(handle, script string, discardOutput bool) (*warden.SpawnResponse, error) {
