@@ -71,7 +71,6 @@ func (c *client) Destroy(handle string) (*warden.DestroyResponse, error) {
 
 func (c *client) Run(handle, script string) (uint32, <-chan *warden.ProcessPayload, error) {
 	conn := c.acquireConnection()
-	defer c.release(conn)
 
 	processID, stream, err := conn.Run(handle, script)
 
