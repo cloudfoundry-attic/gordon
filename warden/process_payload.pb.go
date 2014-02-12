@@ -50,7 +50,7 @@ func (x *ProcessPayload_Source) UnmarshalJSON(data []byte) error {
 }
 
 type ProcessPayload struct {
-	ProcessId        *uint32                `protobuf:"varint,1,opt,name=process_id" json:"process_id,omitempty"`
+	ProcessId        *uint32                `protobuf:"varint,1,req,name=process_id" json:"process_id,omitempty"`
 	Source           *ProcessPayload_Source `protobuf:"varint,2,opt,name=source,enum=warden.ProcessPayload_Source" json:"source,omitempty"`
 	Data             *string                `protobuf:"bytes,3,opt,name=data" json:"data,omitempty"`
 	ExitStatus       *uint32                `protobuf:"varint,4,opt,name=exit_status" json:"exit_status,omitempty"`

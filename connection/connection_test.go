@@ -332,9 +332,9 @@ var _ = Describe("Connection", func() {
 			BeforeEach(func() {
 				wardenMessages = append(wardenMessages,
 					&warden.ProcessPayload{ProcessId: proto.Uint32(42)},
-					&warden.ProcessPayload{Source: &stdout, Data: proto.String("1")},
-					&warden.ProcessPayload{Source: &stderr, Data: proto.String("2")},
-					&warden.ProcessPayload{ExitStatus: proto.Uint32(3)},
+					&warden.ProcessPayload{ProcessId: proto.Uint32(42), Source: &stdout, Data: proto.String("1")},
+					&warden.ProcessPayload{ProcessId: proto.Uint32(42), Source: &stderr, Data: proto.String("2")},
+					&warden.ProcessPayload{ProcessId: proto.Uint32(42), ExitStatus: proto.Uint32(3)},
 				)
 			})
 
@@ -370,7 +370,8 @@ var _ = Describe("Connection", func() {
 			BeforeEach(func() {
 				wardenMessages = append(wardenMessages,
 					&warden.ProcessPayload{ProcessId: proto.Uint32(42)},
-					&warden.ProcessPayload{}, //we do this, so that the first Run has some output to read......
+					//we do this, so that the first Run has some output to read......
+					&warden.ProcessPayload{ProcessId: proto.Uint32(42)},
 					&warden.ProcessPayload{ProcessId: proto.Uint32(43)},
 				)
 			})
@@ -409,9 +410,9 @@ var _ = Describe("Connection", func() {
 
 		BeforeEach(func() {
 			wardenMessages = append(wardenMessages,
-				&warden.ProcessPayload{Source: &stdout, Data: proto.String("1")},
-				&warden.ProcessPayload{Source: &stderr, Data: proto.String("2")},
-				&warden.ProcessPayload{ExitStatus: proto.Uint32(3)},
+				&warden.ProcessPayload{ProcessId: proto.Uint32(42), Source: &stdout, Data: proto.String("1")},
+				&warden.ProcessPayload{ProcessId: proto.Uint32(42), Source: &stderr, Data: proto.String("2")},
+				&warden.ProcessPayload{ProcessId: proto.Uint32(42), ExitStatus: proto.Uint32(3)},
 			)
 		})
 

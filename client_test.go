@@ -101,10 +101,12 @@ var _ = Describe("Client", func() {
 						ProcessId: proto.Uint32(1721),
 					},
 					&warden.ProcessPayload{
-						Source: &stdout,
-						Data:   proto.String("some data for stdout"),
+						ProcessId: proto.Uint32(1721),
+						Source:    &stdout,
+						Data:      proto.String("some data for stdout"),
 					},
 					&warden.ProcessPayload{
+						ProcessId:  proto.Uint32(1721),
 						ExitStatus: proto.Uint32(42),
 					},
 				),
@@ -148,14 +150,17 @@ var _ = Describe("Client", func() {
 			provider = NewFakeConnectionProvider(
 				warden.Messages(
 					&warden.ProcessPayload{
-						Source: &stdout,
-						Data:   proto.String("some data for stdout"),
+						ProcessId: proto.Uint32(1721),
+						Source:    &stdout,
+						Data:      proto.String("some data for stdout"),
 					},
 					&warden.ProcessPayload{
-						Source: &stderr,
-						Data:   proto.String("some data for stderr"),
+						ProcessId: proto.Uint32(1721),
+						Source:    &stderr,
+						Data:      proto.String("some data for stderr"),
 					},
 					&warden.ProcessPayload{
+						ProcessId:  proto.Uint32(1721),
 						ExitStatus: proto.Uint32(42),
 					},
 				),
