@@ -39,19 +39,20 @@ type FakeGordon struct {
 
 	CopyInError error
 
-	StreamError error
+	AttachError error
 
-	scriptsThatRan      []*RunningScript
-	runCallbacks        map[*RunningScript]RunCallback
-	runReturnStatusCode uint32
-	runReturnError      error
+	scriptsThatRan              []*RunningScript
+	runCallbacks                map[*RunningScript]RunCallback
+	runReturnProcessID          uint32
+	runReturnProcessPayloadChan <-chan *warden.ProcessPayload
+	runReturnError              error
 
 	copiedIn []*CopiedIn
 
 	lock *sync.Mutex
 }
 
-type RunCallback func() (*warden.RunResponse, error)
+type RunCallback func() (uint32, <-chan *warden.ProcessPayload, error)
 
 type RunningScript struct {
 	Handle string
@@ -92,11 +93,11 @@ func (f *FakeGordon) Reset() {
 	f.ListError = nil
 	f.InfoError = nil
 	f.CopyInError = nil
-	f.StreamError = nil
+	f.AttachError = nil
 
 	f.scriptsThatRan = make([]*RunningScript, 0)
 	f.runCallbacks = make(map[*RunningScript]RunCallback)
-	f.runReturnStatusCode = 0
+	f.runReturnProcessID = 0
 	f.runReturnError = nil
 }
 
@@ -155,16 +156,6 @@ func (f *FakeGordon) DestroyedHandles() []string {
 	return f.destroyedHandles
 }
 
-func (f *FakeGordon) Spawn(handle, script string, discardOutput bool) (*warden.SpawnResponse, error) {
-	panic("NOOP!")
-	return nil, f.SpawnError
-}
-
-func (f *FakeGordon) Link(handle string, jobID uint32) (*warden.LinkResponse, error) {
-	panic("NOOP!")
-	return nil, f.LinkError
-}
-
 func (f *FakeGordon) NetIn(handle string) (*warden.NetInResponse, error) {
 	panic("NOOP!")
 	return nil, f.NetInError
@@ -217,9 +208,9 @@ func (f *FakeGordon) ThingsCopiedIn() []*CopiedIn {
 	return f.copiedIn
 }
 
-func (f *FakeGordon) Stream(handle string, jobID uint32) (<-chan *warden.StreamResponse, error) {
+func (f *FakeGordon) Attach(handle string, jobID uint32) (<-chan *warden.ProcessPayload, error) {
 	panic("NOOP!")
-	return nil, f.StreamError
+	return nil, f.AttachError
 }
 
 func (f *FakeGordon) ScriptsThatRan() []*RunningScript {
@@ -228,10 +219,11 @@ func (f *FakeGordon) ScriptsThatRan() []*RunningScript {
 	return f.scriptsThatRan
 }
 
-func (f *FakeGordon) SetRunReturnValues(statusCode uint32, err error) {
+func (f *FakeGordon) SetRunReturnValues(processID uint32, processPayloadChan <-chan *warden.ProcessPayload, err error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
-	f.runReturnStatusCode = statusCode
+	f.runReturnProcessID = processID
+	f.runReturnProcessPayloadChan = processPayloadChan
 	f.runReturnError = err
 }
 
@@ -242,7 +234,7 @@ func (f *FakeGordon) WhenRunning(handle string, script string, callback RunCallb
 	f.runCallbacks[&RunningScript{handle, script}] = callback
 }
 
-func (f *FakeGordon) Run(handle string, script string) (*warden.RunResponse, error) {
+func (f *FakeGordon) Run(handle string, script string) (uint32, <-chan *warden.ProcessPayload, error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
@@ -257,5 +249,5 @@ func (f *FakeGordon) Run(handle string, script string) (*warden.RunResponse, err
 		}
 	}
 
-	return &warden.RunResponse{ExitStatus: proto.Uint32(f.runReturnStatusCode)}, f.runReturnError
+	return f.runReturnProcessID, f.runReturnProcessPayloadChan, f.runReturnError
 }
