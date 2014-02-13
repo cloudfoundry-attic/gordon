@@ -46,6 +46,8 @@ type FakeGordon struct {
 	runReturnStatusCode uint32
 	runReturnError      error
 
+	copiedIn []*CopiedIn
+
 	lock *sync.Mutex
 }
 
@@ -54,6 +56,11 @@ type RunCallback func() (*warden.RunResponse, error)
 type RunningScript struct {
 	Handle string
 	Script string
+}
+
+type CopiedIn struct {
+	Src string
+	Dst string
 }
 
 func New() *FakeGordon {
@@ -194,8 +201,20 @@ func (f *FakeGordon) Info(handle string) (*warden.InfoResponse, error) {
 }
 
 func (f *FakeGordon) CopyIn(handle, src, dst string) (*warden.CopyInResponse, error) {
-	panic("NOOP!")
-	return nil, f.CopyInError
+	if f.CopyInError != nil {
+		return nil, f.CopyInError
+	}
+
+	f.copiedIn = append(f.copiedIn, &CopiedIn{
+		Src: src,
+		Dst: dst,
+	})
+
+	return &warden.CopyInResponse{}, nil
+}
+
+func (f *FakeGordon) ThingsCopiedIn() []*CopiedIn {
+	return f.copiedIn
 }
 
 func (f *FakeGordon) Stream(handle string, jobID uint32) (<-chan *warden.StreamResponse, error) {
