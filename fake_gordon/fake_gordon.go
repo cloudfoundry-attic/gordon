@@ -1,21 +1,23 @@
 package fake_gordon
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
-	"github.com/nu7hatch/gouuid"
-	"github.com/cloudfoundry-incubator/gordon"
-	"github.com/cloudfoundry-incubator/gordon/warden"
 	"io/ioutil"
 	"os"
 	"sync"
+
+	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/gordon"
+	"github.com/cloudfoundry-incubator/gordon/warden"
+	"github.com/nu7hatch/gouuid"
 )
 
 type FakeGordon struct {
 	Connected    bool
 	ConnectError error
 
-	createdHandles []string
-	CreateError    error
+	created     []backend.ContainerSpec
+	CreateError error
 
 	stoppedHandles []string
 	StopError      error
@@ -109,7 +111,7 @@ func (f *FakeGordon) Reset() {
 	f.Connected = false
 	f.ConnectError = nil
 
-	f.createdHandles = []string{}
+	f.created = []backend.ContainerSpec{}
 	f.CreateError = nil
 
 	f.stoppedHandles = []string{}
@@ -154,28 +156,31 @@ func (f *FakeGordon) Connect() error {
 	return f.ConnectError
 }
 
-func (f *FakeGordon) Create() (*warden.CreateResponse, error) {
+func (f *FakeGordon) Create(spec backend.ContainerSpec) (*warden.CreateResponse, error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
+
 	if f.CreateError != nil {
 		return nil, f.CreateError
 	}
 
-	handleUuid, _ := uuid.NewV4()
-	handle := handleUuid.String()[:11]
+	if spec.Handle == "" {
+		handleUuid, _ := uuid.NewV4()
+		spec.Handle = handleUuid.String()[:11]
+	}
 
-	f.createdHandles = append(f.createdHandles, handle)
+	f.created = append(f.created, spec)
 
 	return &warden.CreateResponse{
-		Handle: proto.String(handle),
+		Handle: proto.String(spec.Handle),
 	}, nil
 }
 
-func (f *FakeGordon) CreatedHandles() []string {
+func (f *FakeGordon) Created() []backend.ContainerSpec {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
-	return f.createdHandles
+	return f.created
 }
 
 func (f *FakeGordon) Stop(handle string, background, kill bool) (*warden.StopResponse, error) {

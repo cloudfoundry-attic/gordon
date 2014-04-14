@@ -2,11 +2,13 @@ package connection_test
 
 import (
 	"bytes"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	. "github.com/cloudfoundry-incubator/gordon/connection"
 	"math"
 	"time"
+
+	"github.com/cloudfoundry-incubator/garden/backend"
+	. "github.com/cloudfoundry-incubator/gordon/connection"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	"code.google.com/p/gogoprotobuf/proto"
 	. "github.com/cloudfoundry-incubator/gordon/test_helpers"
@@ -51,11 +53,48 @@ var _ = Describe("Connection", func() {
 		})
 
 		It("should create a container", func() {
-			resp, err := connection.Create()
+			resp, err := connection.Create(backend.ContainerSpec{
+				Handle:     "some-handle",
+				GraceTime:  10 * time.Second,
+				RootFSPath: "some-rootfs-path",
+				BindMounts: []backend.BindMount{
+					{
+						SrcPath: "/src-a",
+						DstPath: "/dst-a",
+						Mode:    backend.BindMountModeRO,
+					},
+					{
+						SrcPath: "/src-b",
+						DstPath: "/dst-b",
+						Mode:    backend.BindMountModeRW,
+					},
+				},
+				Network: "some-network",
+			})
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(resp.GetHandle()).Should(Equal("foohandle"))
 
-			assertWriteBufferContains(&warden.CreateRequest{})
+			ro := warden.CreateRequest_BindMount_RO
+			rw := warden.CreateRequest_BindMount_RW
+
+			assertWriteBufferContains(&warden.CreateRequest{
+				Handle:    proto.String("some-handle"),
+				GraceTime: proto.Uint32(10),
+				Rootfs:    proto.String("some-rootfs-path"),
+				Network:   proto.String("some-network"),
+				BindMounts: []*warden.CreateRequest_BindMount{
+					{
+						SrcPath: proto.String("/src-a"),
+						DstPath: proto.String("/dst-a"),
+						Mode:    &ro,
+					},
+					{
+						SrcPath: proto.String("/src-b"),
+						DstPath: proto.String("/dst-b"),
+						Mode:    &rw,
+					},
+				},
+			})
 		})
 	})
 

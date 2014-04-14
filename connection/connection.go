@@ -11,6 +11,7 @@ import (
 
 	"code.google.com/p/gogoprotobuf/proto"
 
+	"github.com/cloudfoundry-incubator/garden/backend"
 	"github.com/cloudfoundry-incubator/gordon/warden"
 )
 
@@ -69,8 +70,43 @@ func (c *Connection) Close() {
 	c.conn.Close()
 }
 
-func (c *Connection) Create() (*warden.CreateResponse, error) {
-	res, err := c.RoundTrip(&warden.CreateRequest{}, &warden.CreateResponse{})
+func (c *Connection) Create(spec backend.ContainerSpec) (*warden.CreateResponse, error) {
+	request := &warden.CreateRequest{}
+
+	if spec.Handle != "" {
+		request.Handle = proto.String(spec.Handle)
+	}
+
+	if spec.RootFSPath != "" {
+		request.Rootfs = proto.String(spec.RootFSPath)
+	}
+
+	if spec.GraceTime != 0 {
+		request.GraceTime = proto.Uint32(uint32(spec.GraceTime.Seconds()))
+	}
+
+	if spec.Network != "" {
+		request.Network = proto.String(spec.Network)
+	}
+
+	for _, bm := range spec.BindMounts {
+		var mode warden.CreateRequest_BindMount_Mode
+
+		switch bm.Mode {
+		case backend.BindMountModeRO:
+			mode = warden.CreateRequest_BindMount_RO
+		case backend.BindMountModeRW:
+			mode = warden.CreateRequest_BindMount_RW
+		}
+
+		request.BindMounts = append(request.BindMounts, &warden.CreateRequest_BindMount{
+			SrcPath: proto.String(bm.SrcPath),
+			DstPath: proto.String(bm.DstPath),
+			Mode:    &mode,
+		})
+	}
+
+	res, err := c.RoundTrip(request, &warden.CreateResponse{})
 	if err != nil {
 		return nil, err
 	}

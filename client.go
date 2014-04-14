@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/cloudfoundry-incubator/garden/backend"
 
 	"github.com/cloudfoundry-incubator/gordon/connection"
 	"github.com/cloudfoundry-incubator/gordon/warden"
@@ -21,7 +22,7 @@ type DiskLimits struct {
 type Client interface {
 	Connect() error
 
-	Create() (*warden.CreateResponse, error)
+	Create(backend.ContainerSpec) (*warden.CreateResponse, error)
 	Stop(handle string, background, kill bool) (*warden.StopResponse, error)
 	Destroy(handle string) (*warden.DestroyResponse, error)
 	Run(handle, script string, resourceLimits ResourceLimits) (uint32, <-chan *warden.ProcessPayload, error)
@@ -60,11 +61,11 @@ func (c *client) Connect() error {
 	return nil
 }
 
-func (c *client) Create() (*warden.CreateResponse, error) {
+func (c *client) Create(spec backend.ContainerSpec) (*warden.CreateResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
-	return conn.Create()
+	return conn.Create(spec)
 }
 
 func (c *client) Stop(handle string, background, kill bool) (*warden.StopResponse, error) {

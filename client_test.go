@@ -5,9 +5,10 @@ import (
 	"errors"
 	"runtime"
 
+	"github.com/cloudfoundry-incubator/garden/backend"
+	. "github.com/cloudfoundry-incubator/gordon"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/cloudfoundry-incubator/gordon"
 
 	"code.google.com/p/gogoprotobuf/proto"
 	"github.com/cloudfoundry-incubator/gordon/warden"
@@ -69,7 +70,7 @@ var _ = Describe("Client", func() {
 		})
 
 		It("should be able to create, stop and destroy a container", func() {
-			res, err := client.Create()
+			res, err := client.Create(backend.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(res.GetHandle()).Should(Equal("foo"))
 
@@ -390,13 +391,13 @@ var _ = Describe("Client", func() {
 			})
 
 			It("should attempt to reconnect when a disconnect occurs", func() {
-				c1, err := client.Create()
+				c1, err := client.Create(backend.ContainerSpec{})
 				Ω(err).ShouldNot(HaveOccurred())
 
 				// let client notice disconnect
 				runtime.Gosched()
 
-				c2, err := client.Create()
+				c2, err := client.Create(backend.ContainerSpec{})
 				Ω(err).ShouldNot(HaveOccurred())
 
 				_, err = client.Destroy(c1.GetHandle())
