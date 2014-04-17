@@ -69,8 +69,18 @@ func (c *Connection) Close() {
 	c.conn.Close()
 }
 
-func (c *Connection) Create() (*warden.CreateResponse, error) {
-	res, err := c.RoundTrip(&warden.CreateRequest{}, &warden.CreateResponse{})
+func (c *Connection) Create(properties map[string]string) (*warden.CreateResponse, error) {
+	props := []*warden.Property{}
+	for key, val := range properties {
+		props = append(props, &warden.Property{
+			Key:   proto.String(key),
+			Value: proto.String(val),
+		})
+	}
+
+	req := &warden.CreateRequest{Properties: props}
+
+	res, err := c.RoundTrip(req, &warden.CreateResponse{})
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,7 @@ type DiskLimits struct {
 type Client interface {
 	Connect() error
 
-	Create() (*warden.CreateResponse, error)
+	Create(properties map[string]string) (*warden.CreateResponse, error)
 	Stop(handle string, background, kill bool) (*warden.StopResponse, error)
 	Destroy(handle string) (*warden.DestroyResponse, error)
 	Run(handle, script string, resourceLimits ResourceLimits) (uint32, <-chan *warden.ProcessPayload, error)
@@ -60,11 +60,11 @@ func (c *client) Connect() error {
 	return nil
 }
 
-func (c *client) Create() (*warden.CreateResponse, error) {
+func (c *client) Create(properties map[string]string) (*warden.CreateResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
-	return conn.Create()
+	return conn.Create(properties)
 }
 
 func (c *client) Stop(handle string, background, kill bool) (*warden.StopResponse, error) {

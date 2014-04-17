@@ -2,9 +2,9 @@ package connection_test
 
 import (
 	"bytes"
+	. "github.com/cloudfoundry-incubator/gordon/connection"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/cloudfoundry-incubator/gordon/connection"
 	"math"
 	"time"
 
@@ -51,11 +51,20 @@ var _ = Describe("Connection", func() {
 		})
 
 		It("should create a container", func() {
-			resp, err := connection.Create()
+			resp, err := connection.Create(map[string]string{
+				"foo": "bar",
+			})
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(resp.GetHandle()).Should(Equal("foohandle"))
 
-			assertWriteBufferContains(&warden.CreateRequest{})
+			assertWriteBufferContains(&warden.CreateRequest{
+				Properties: []*warden.Property{
+					{
+						Key:   proto.String("foo"),
+						Value: proto.String("bar"),
+					},
+				},
+			})
 		})
 	})
 

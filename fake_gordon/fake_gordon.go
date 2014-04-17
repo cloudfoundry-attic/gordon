@@ -2,9 +2,9 @@ package fake_gordon
 
 import (
 	"code.google.com/p/gogoprotobuf/proto"
-	"github.com/nu7hatch/gouuid"
 	"github.com/cloudfoundry-incubator/gordon"
 	"github.com/cloudfoundry-incubator/gordon/warden"
+	"github.com/nu7hatch/gouuid"
 	"io/ioutil"
 	"os"
 	"sync"
