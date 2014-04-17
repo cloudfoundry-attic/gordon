@@ -2,11 +2,11 @@ package connection_test
 
 import (
 	"bytes"
+	"math"
+	"time"
 	. "github.com/cloudfoundry-incubator/gordon/connection"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"math"
-	"time"
 
 	"code.google.com/p/gogoprotobuf/proto"
 	. "github.com/cloudfoundry-incubator/gordon/test_helpers"
@@ -239,12 +239,19 @@ var _ = Describe("Connection", func() {
 		})
 
 		It("should return the list of containers", func() {
-			resp, err := connection.List()
+			resp, err := connection.List(map[string]string{"foo": "bar"})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(resp.GetHandles()).Should(Equal([]string{"container1", "container2", "container3"}))
 
-			assertWriteBufferContains(&warden.ListRequest{})
+			assertWriteBufferContains(&warden.ListRequest{
+				Properties: []*warden.Property{
+					{
+						Key:   proto.String("foo"),
+						Value: proto.String("bar"),
+					},
+				},
+			})
 		})
 	})
 

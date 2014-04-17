@@ -310,8 +310,18 @@ func (c *Connection) CopyOut(handle, src, dst, owner string) (*warden.CopyOutRes
 	return res.(*warden.CopyOutResponse), nil
 }
 
-func (c *Connection) List() (*warden.ListResponse, error) {
-	res, err := c.RoundTrip(&warden.ListRequest{}, &warden.ListResponse{})
+func (c *Connection) List(filterProperties map[string]string) (*warden.ListResponse, error) {
+	props := []*warden.Property{}
+	for key, val := range filterProperties {
+		props = append(props, &warden.Property{
+			Key:   proto.String(key),
+			Value: proto.String(val),
+		})
+	}
+
+	req := &warden.ListRequest{Properties: props}
+
+	res, err := c.RoundTrip(req, &warden.ListResponse{})
 	if err != nil {
 		return nil, err
 	}

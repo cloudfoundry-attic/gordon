@@ -319,12 +319,19 @@ var _ = Describe("Client", func() {
 			})
 
 			It("should list the containers", func() {
-				res, err := client.List()
+				res, err := client.List(map[string]string{"foo": "bar"})
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(res.GetHandles()).Should(Equal([]string{"container1", "container6"}))
 
 				expectedWriteBufferContents := string(warden.Messages(
-					&warden.ListRequest{},
+					&warden.ListRequest{
+						Properties: []*warden.Property{
+							{
+								Key:   proto.String("foo"),
+								Value: proto.String("bar"),
+							},
+						},
+					},
 				).Bytes())
 
 				Ω(string(writeBuffer.Bytes())).Should(Equal(expectedWriteBufferContents))

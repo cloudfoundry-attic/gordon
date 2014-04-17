@@ -31,7 +31,7 @@ type Client interface {
 	GetMemoryLimit(handle string) (uint64, error)
 	LimitDisk(handle string, limits DiskLimits) (*warden.LimitDiskResponse, error)
 	GetDiskLimit(handle string) (uint64, error)
-	List() (*warden.ListResponse, error)
+	List(filterProperties map[string]string) (*warden.ListResponse, error)
 	Info(handle string) (*warden.InfoResponse, error)
 	CopyIn(handle, src, dst string) (*warden.CopyInResponse, error)
 	CopyOut(handle, src, dst, owner string) (*warden.CopyOutResponse, error)
@@ -179,11 +179,11 @@ func (c *client) GetDiskLimit(handle string) (uint64, error) {
 	return conn.GetDiskLimit(handle)
 }
 
-func (c *client) List() (*warden.ListResponse, error) {
+func (c *client) List(filterProperties map[string]string) (*warden.ListResponse, error) {
 	conn := c.acquireConnection()
 	defer c.release(conn)
 
-	return conn.List()
+	return conn.List(filterProperties)
 }
 
 func (c *client) Info(handle string) (*warden.InfoResponse, error) {
