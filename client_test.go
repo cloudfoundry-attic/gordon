@@ -5,6 +5,8 @@ import (
 	"errors"
 	"runtime"
 
+	"github.com/cloudfoundry-incubator/gordon/fake_gordon"
+
 	. "github.com/cloudfoundry-incubator/gordon"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -27,6 +29,10 @@ var _ = Describe("Client", func() {
 
 	stdout := warden.ProcessPayload_stdout
 	stderr := warden.ProcessPayload_stderr
+
+	It("should have a fake", func() {
+		client = fake_gordon.New()
+	})
 
 	Describe("Connect", func() {
 		Context("with a successful provider", func() {
