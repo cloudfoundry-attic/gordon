@@ -182,7 +182,7 @@ func (f *FakeGordon) CreatedHandles() []string {
 	return f.createdHandles
 }
 
-func (f *FakeGordon) CreatedProperties() []string {
+func (f *FakeGordon) CreatedProperties() []map[string]string {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
